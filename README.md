@@ -80,11 +80,9 @@ Based on this simulated null distribution, a p-value can be assigned to all obse
 
 `python goldfinder/goldfinder.py -i <path to gene presence/absence file> -t <path to phylogenetic tree file>`
 
-`python goldfinder/goldfinder.py -i example_files/roary_mini_example.csv -t`
+`python goldfinder/goldfinder.py -i example_files/roary_mini_example.csv -t example_files/example.nwk`
 
 Goldfinder requires a gene presence/absence file as input, which can be provided in one of three formats: (a) as the `gene_presence_absence.csv` output from <a href="https://sanger-pathogens.github.io/Roary/">Roary</a> or <a href="https://github.com/gtonkinhill/panaroo">Panaroo</a>; (b) as a tab-delimited list of genes present in each strain; (c) as the output folder from <a href="https://pangenome.org/">PanX</a>. We have provided examplary files in these formats in the example_files folder.
-
-You do not have to provide a phylogenetic tree, nevertheless the `-t` argument is required, as we would like to highlight that including one will improve analysis.
 
 ### Command line arguments
 
