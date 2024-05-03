@@ -21,10 +21,26 @@ def load_input(pinput, filetype, pmetadata, pknown_associations):
         df = load_tab_delimited(pinput)
     elif filetype == "panx":
         df, locus_dict = load_panx(pinput)
+    elif filetype == "matrix":
+        df = pd.read_csv(pinput, index_col=0, header=0)
+        if df.index.has_duplicates:
+            exit("Error: input matrix contains non-unique gene names.")
+
+        """
+        # For future developers: Convert your matrix into the tab format with this code:
+        with open("C:/Users/emilp/Documents/Projekte/goldfinder_data/tab_example.tsv", 'w') as file:
+            for i in df.T.unstack().loc[lambda x: x.astype(bool)].index:
+                file.write('\t'.join(map(str, i)))
+                file.write('\n')
+        """
+
+    # in case filetype is roary or panx, index of central pres/abs df will contain additional
+    # information
+    simple_idx = filetype in ["tab", "matrix"]
 
     metadata = None
     if pmetadata is not None:
-        if filetype == "tab":
+        if simple_idx:
             metadata = load_metadata(pmetadata, df.index)
         else:  # TODO not sure this also applies to panx case
             metadata = load_metadata(pmetadata, pd.Index([i.split('/')[0] for i in df.index]))
@@ -40,12 +56,12 @@ def load_input(pinput, filetype, pmetadata, pknown_associations):
                 exit('Number of known associations was parsed as negative.')
         except ValueError:  # or a file
             num_known_assoc, known_assoc = load_known_assoc(pknown_associations, df.index,
-                                                            filetype == "tab")
+                                                            simple_idx)
 
     return df, locus_dict, metadata, num_known_assoc, known_assoc
 
 
-def load_known_assoc(pknown_assoc, full_gene_info, filetype_tab):
+def load_known_assoc(pknown_assoc, full_gene_info, simple_idx):
     df = pd.read_csv(pknown_assoc, sep='\t', header=None)
 
     if df.shape[1] != 2:
@@ -60,7 +76,7 @@ def load_known_assoc(pknown_assoc, full_gene_info, filetype_tab):
               'or same-gene-pairs. These were removed.')
         num_pairs = df.shape[0]
 
-    # Dict gene_id: full_gene_info for this function. In case of tab format, both are identical
+    # Dict gene_id: full_gene_info for this function. In case of gene index, both are identical
     genes_dict = {}
     for gene_info in full_gene_info:
         genes_dict[gene_info.split('/')[0]] = gene_info
@@ -79,7 +95,7 @@ def load_known_assoc(pknown_assoc, full_gene_info, filetype_tab):
     # adj) p-values. In case of format not tab, keys will match gene_abs_pres dataframe index
     known_assoc = {}
     for tup in (tuple(sorted(genes, reverse=True)) for genes in df.values):
-        if filetype_tab:
+        if simple_idx:
             known_assoc[tup] = (np.nan, np.nan)
         else:
             known_assoc[tuple(genes_dict[i] for i in tup)] = (np.nan, np.nan)
