@@ -26,7 +26,7 @@ def cluster_procedure(p_values_adj, sig_lvl, pinflation, poutput, perform_cluste
     return dict_cluster, clusters
 
 
-def dissociation_freq(cluster_dict, p_values_adj, simple_idx):
+def dissociation_freq(cluster_dict, p_values_adj, pfile_type):
     """
     Calculate average dissociation between MCL clusters, which were calculated based on association
     between genes.
@@ -39,9 +39,8 @@ def dissociation_freq(cluster_dict, p_values_adj, simple_idx):
         Dictionary of gene_name to ID of MCL cluster, which was generated using gene associations
     p_values_adj : DataFrame
         p-values of dissociation of genes
-    simple_idx : bool
-        Whether index of central dataframe is simple or contains additional information. Depends on
-        input format.
+    pfile_type : str
+        User defined input format
 
     Returns
     -------
@@ -57,9 +56,9 @@ def dissociation_freq(cluster_dict, p_values_adj, simple_idx):
 
     dissoc_freq = {}
 
-    # p_values_adj's index might contain additional information, separated by /
+    # p_values_adj's index contains additional information, separated by /, if input format != tab
     id_to_index = {}
-    if simple_idx:
+    if pfile_type == 'tab':
         all_ids = p_values_adj.index
     else:
         for idx in p_values_adj.index:
@@ -71,7 +70,7 @@ def dissociation_freq(cluster_dict, p_values_adj, simple_idx):
         for cl1, cl2 in tqdm(combinations(rev_dict.keys(), 2),
                              total=int(len(rev_dict) * (len(rev_dict) - 1) / 2)):
 
-            if simple_idx:
+            if pfile_type == 'tab':
                 indices_1 = all_ids.intersection(rev_dict[cl1])
                 indices_2 = all_ids.intersection(rev_dict[cl2])
             else:

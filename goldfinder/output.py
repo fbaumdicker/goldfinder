@@ -36,8 +36,7 @@ def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cl
         assoc_genes_cytoscape(df, cytoscape_file)
 
         # Calculate fraction of associated genes between clusters
-        assoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj,
-                                                  pfile_type in ["matrix", "tab"])
+        assoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj, pfile_type)
 
         # Also write fraction of associated genes between clusters to the cytoscape file
         clusters_assoc_cytoscape(assoc_freq, cluster_dict, poutput)
@@ -92,14 +91,14 @@ def write_significant_gp(df, df_unadj, sig_indices, clusters, locus, file_name, 
     with open(file_name, 'w') as f:
 
         # construct header based on input format
-        if file_type in ["roary", "panaroo"]:
+        if file_type == "roary" or file_type == "panaroo":
             header = ("Gene_1," + "Gene_name_1," + "Annotation_1," + "Gene_2," + "Gene_name_2," +
                       "Annotation_2," + "p-value unadj," + "p-value adj")
         elif file_type == "panx":
             header = ("Gene_1," + "Gene_name_1," + "Annotation_1," + "Locus_tags_1," + "Gene_2," +
                       "Gene_name_2," + "Annotation_2," + "Locus_tags_2," + "p-value unadj," +
                       "p-value adj")
-        elif file_type in ["matrix", "tab"]:
+        elif file_type == "tab":
             header = "Gene_1," + "Gene_2," + "p-value unadj," + "p-value adj"
 
         # add to header depending on arguments, independent of input format
@@ -122,7 +121,7 @@ def write_significant_gp(df, df_unadj, sig_indices, clusters, locus, file_name, 
 
         # for each significant gene pair, write a line
         for x in tqdm(range(len(sig_indices[0]))):
-            if file_type in ["roary", "panaroo"]:
+            if file_type == "roary" or file_type == "panaroo":
                 gene_1 = str(columns[sig_indices[0][x]]).split("/")
                 gene_2 = str(rows[sig_indices[1][x]]).split("/")
 
@@ -138,7 +137,7 @@ def write_significant_gp(df, df_unadj, sig_indices, clusters, locus, file_name, 
                                        str(rows[sig_indices[1][x]])]
                 p_adj = df.iloc[sig_indices[0][x], sig_indices[1][x]]
 
-            elif file_type in ["matrix", "tab"]:
+            elif file_type == "tab":
                 gene_1 = str(columns[sig_indices[0][x]])
                 gene_2 = str(rows[sig_indices[1][x]])
 
@@ -202,7 +201,7 @@ def assemble_gp_line(gene_1, gene_2, file_type, p_unadj, p_adj, locus_dict, perf
 
     """
     # this part depends on input format
-    if file_type in ["roary", "panaroo"]:
+    if file_type == "roary" or file_type == "panaroo":
 
         s = (gene_1[0] + "," + gene_1[1] + "," + gene_1[2] + "," + gene_2[0] + "," +
              gene_2[1] + "," + gene_2[2] + "," + str(p_unadj) + "," + str(p_adj))
@@ -221,7 +220,7 @@ def assemble_gp_line(gene_1, gene_2, file_type, p_unadj, p_adj, locus_dict, perf
         gene_1 = gene_1[0]
         gene_2 = gene_2[0]
 
-    elif file_type in ["matrix", "tab"]:
+    elif file_type == "tab":
 
         s = gene_1 + "," + gene_2 + "," + str(p_unadj) + "," + str(p_adj)
 
@@ -278,7 +277,7 @@ def write_log(poutput, message):
         f.close()
 
 
-def write_clusters(clusters, gene_names, file_name, file_type):
+def write_clusters(clusters, gene_names, file_name, filetype):
     """Writing for each cluster the associated genes
     clusters: mcl output consisting of clusters and the genes they contain
     gene_names: list of gene names
@@ -292,7 +291,7 @@ def write_clusters(clusters, gene_names, file_name, file_type):
                 s = ">" + str(gene_cluster_nr) + "," + str(cluster_size) + "\n"
                 f.write(s)
                 for gene_loc_i in range(cluster_size):
-                    if file_type in ["matrix", "tab"]:
+                    if filetype == "tab":
                         s = gene_names[clusters[x][gene_loc_i]]
                     else:
                         s = gene_names[clusters[x][gene_loc_i]].split("/")[0]

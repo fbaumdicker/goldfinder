@@ -23,10 +23,9 @@ def argparser():
     # Input
     parser.add_argument("-i", "--input", required=True,
                         help="File containing gene presence/absence data, or panX folder", default=argparse.SUPPRESS)
-    parser.add_argument("-f", "--file_type", nargs='?', choices=["roary", "tab", "panx", "matrix"],
+    parser.add_argument("-f", "--file_type", nargs='?', choices=["roary", "tab", "panx"],
                         default="roary", help="Clarifying which input file type Goldfinder is "
-                        "dealing with: a) roary (or panaroo), b) tab, c) panx d) .csv matrix in "
-                        "pandas format.")
+                        "dealing with: a) roary (or panaroo), b) tab, c) panx.")
     parser.add_argument("-t", "--tree", required=True, nargs='?', const=None,
                         help="User's phylogenetic tree in newick string format. Required, but if "
                         "given without argument, a phylogenetic tree is calculated from the input "
@@ -166,8 +165,7 @@ def main():
 
         if p.coocurrence == 'both' and mode == 'dissociation' and not p.no_clustering:
             print("Calculating Average Dissociation between Clusters")
-            dissoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj,
-                                                       p.file_type in ["tab", "matrix"])
+            dissoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj, p.file_type)
 
             # Write to file, along with global fraction of significantly dissociated gene pairs
             num_significant = significant_score_indices[0].size
@@ -186,8 +184,8 @@ def main():
         print(f"Preparing output files for {mode}")
         output.result_procedure(p_values_adj, p_values_unadj, significant_score_indices,
                                 cluster_dict, clusters, locus_dict, p.output, p.score, mode,
-                                p.file_type, perform_clustering, metadata,
-                                known_assoc, p.coocurrence == 'both' and not p.no_clustering)
+                                p.file_type, perform_clustering, metadata, known_assoc,
+                                p.coocurrence == 'both' and not p.no_clustering)
 
     print("Analysis is finished")
 
