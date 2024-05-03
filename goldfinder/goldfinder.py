@@ -16,8 +16,11 @@ import numpy as np
 def argparser():
     """Store user input and return them as Namespace object"""
     parser = argparse.ArgumentParser(
-        prog="goldfinder", description="Finding co-occurring genes while accounting for linkage by descent."
-        "If you use Goldfinder please cite the paper given in the github readme.",
+        prog="goldfinder", description="Finding co-occurring genes while accounting for linkage by descent.",
+        epilog = "If you use Goldfinder, please cite:"
+        " Goldfinder: Unraveling Networks of Gene Co-occurrence and Avoidance in Bacterial Pangenomes;"
+        #" Athina Gavriilidou, Emilian Paulitz, Christian Resl, Nadine Ziemert, Anne Kupczok, Franz Baumdicker;"
+        " bioRxiv; 2024.04.29.591652; doi: 10.1101/2024.04.29.591652",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Input

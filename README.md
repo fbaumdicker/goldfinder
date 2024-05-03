@@ -31,8 +31,10 @@ to find gene pairs that co-occur significantly more or less often than expected,
 while accounting for the probability to co-occur due to the linked descent.
 
 ### Where can I read more about it?
-If you add something here, also edit the help message of the tool. It can be done right at the top of main() in goldfinder.py.
-Also edit the citation information section at the bottom of the readme.
+You can find a preprint at bioRxiv that explains the concepts in more detail.
+Goldfinder: Unraveling Networks of Gene Co-occurrence and Avoidance in Bacterial Pangenomes
+Athina Gavriilidou, Emilian Paulitz, Christian Resl, Nadine Ziemert, Anne Kupczok, Franz Baumdicker
+bioRxiv 2024.04.29.591652; doi: https://doi.org/10.1101/2024.04.29.591652
 
 ### Installation
 
@@ -189,7 +191,10 @@ The jupyter notebook also includes some additional visualizations only for compl
 
 # Citation information:
 
-If you add something here, also edit the help message of the tool. It can be done right at the top of main() in goldfinder.py.
+If you use Goldfinder, please cite:
+Goldfinder: Unraveling Networks of Gene Co-occurrence and Avoidance in Bacterial Pangenomes
+Athina Gavriilidou, Emilian Paulitz, Christian Resl, Nadine Ziemert, Anne Kupczok, Franz Baumdicker
+bioRxiv 2024.04.29.591652; doi: https://doi.org/10.1101/2024.04.29.591652
 
 # Bugs and other issues:
 
