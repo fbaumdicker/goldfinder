@@ -82,9 +82,12 @@ Based on this simulated null distribution, a p-value can be assigned to all obse
 
 `python goldfinder/goldfinder.py -i <path to gene presence/absence file> -t <path to phylogenetic tree file>`
 
-`python goldfinder/goldfinder.py -i example_files/roary_mini_example.csv -t example_files/example.nwk`
+`python goldfinder/goldfinder.py -i example_files/matrix_mini_example.csv -t example_files/example.nwk`
 
-Goldfinder requires a gene presence/absence file as input, which can be provided in one of three formats: (a) as the `gene_presence_absence.csv` output from <a href="https://sanger-pathogens.github.io/Roary/">Roary</a> or <a href="https://github.com/gtonkinhill/panaroo">Panaroo</a>; (b) as a tab-delimited list of genes present in each strain; (c) as the output folder from <a href="https://pangenome.org/">PanX</a>. We have provided examplary files in these formats in the example_files folder.
+`python goldfinder/goldfinder.py -i example_files/roary_mini_example.csv -t example_files/example.nwk -f roary`
+
+
+Goldfinder requires a gene presence/absence file as input, which can be provided in one of four formats: (a) as the `gene_presence_absence.csv` output from <a href="https://sanger-pathogens.github.io/Roary/">Roary</a> or <a href="https://github.com/gtonkinhill/panaroo">Panaroo</a>; (b) as a tab-delimited list of genes present in each strain; (c) as the output folder from <a href="https://pangenome.org/">PanX</a>; (d) (Default) as a .csv file with genes as rows, genomes as columns, and cell content 0 (for absence) or 1 (for presence). We have provided examplary files in these formats in the example_files folder.
 
 ### Command line arguments
 
@@ -94,9 +97,10 @@ For more information on usage, please see `goldfinder -h`:
 File input:
   -i INPUT, --input INPUT
                         File containing gene presence/absence data, or panX folder
-  -f [{roary,tab,panx}], --file_type [{roary,tab,panx}]
+  -f [{roary,tab,panx,matrix}], --file_type [{roary,tab,panx,matrix}]
                         Clarifying which input file type Goldfinder is dealing with: a)
-                        roary (or panaroo), b) tab, c) panx. (default: roary)
+                        roary (or panaroo), b) tab, c) panx d) .csv matrix in pandas
+                        format. (default: matrix)
   -t [TREE], --tree [TREE]
                         User's phylogenetic tree in newick string format. Required, but
                         if given without argument, a phylogenetic tree is calculated from
