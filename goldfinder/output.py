@@ -124,6 +124,7 @@ def write_significant_gp(df, df_unadj, sig_indices, clusters, locus, file_name, 
         for x in tqdm(range(len(sig_indices[0]))):
             if file_type in ["roary", "panaroo"]:
                 gene_1 = str(columns[sig_indices[0][x]]).split("/")
+
                 gene_2 = str(rows[sig_indices[1][x]]).split("/")
 
                 p_unadj = df_unadj.loc[str(columns[sig_indices[0][x]]),
@@ -203,27 +204,23 @@ def assemble_gp_line(gene_1, gene_2, file_type, p_unadj, p_adj, locus_dict, perf
     """
     # this part depends on input format
     if file_type in ["roary", "panaroo"]:
-
-        s = (gene_1[0] + "," + gene_1[1] + "," + gene_1[2] + "," + gene_2[0] + "," +
-             gene_2[1] + "," + gene_2[2] + "," + str(p_unadj) + "," + str(p_adj))
+        fields = [gene_1[0], gene_1[1], gene_1[2], gene_2[0], gene_2[1], gene_2[2],
+                  str(p_unadj), str(p_adj)]
 
         # This is the id used in the following
         gene_1 = gene_1[0]
         gene_2 = gene_2[0]
 
     elif file_type == "panx":
-
-        s = (gene_1[0] + "," + gene_1[1] + "," + gene_1[2] + "," + locus_dict[gene_1[0]] + "," +
-             gene_2[0] + "," + gene_2[1] + "," + gene_2[2] + "," + locus_dict[gene_2[0]] + "," +
-             str(p_unadj) + "," + str(p_adj))
+        fields = [gene_1[0], gene_1[1], gene_1[2], locus_dict[gene_1[0]], gene_2[0], gene_2[1], 
+                  gene_2[2], locus_dict[gene_2[0]], str(p_unadj), str(p_adj)]
 
         # This is the id used in the following
         gene_1 = gene_1[0]
         gene_2 = gene_2[0]
 
     elif file_type in ["matrix", "tab"]:
-
-        s = gene_1 + "," + gene_2 + "," + str(p_unadj) + "," + str(p_adj)
+        fields = [gene_1, gene_2, str(p_unadj), str(p_adj)]
 
     # this part does not depend on input format but on arguments
     if perform_clustering:
@@ -233,27 +230,23 @@ def assemble_gp_line(gene_1, gene_2, file_type, p_unadj, p_adj, locus_dict, perf
                 clusters[gene_1] == clusters[gene_2]):
             cluster_name = str(clusters[gene_1])
 
-        s += ","
-        s += cluster_name
+        fields.append(cluster_name)
 
     if metadata is not None:
-        s += ","
-        s += ",".join(metadata.loc[gene_1, :])
-        s += ","
-        s += ",".join(metadata.loc[gene_2, :])
+        fields += metadata.loc[gene_1, :]
+        fields += metadata.loc[gene_2, :]
 
     if known_assoc_to_write is not None:
-        s += ","
         tup = (gene_1, gene_2) if gene_1 > gene_2 else (gene_2, gene_1)
 
         if tup in known_assoc_to_write:
             # remove the element when it is written
             known_assoc_to_write.remove(tup)
-            s += 'yes'
+            fields.append('yes')
         else:
-            s += 'no'
+            fields.append('no')
 
-    s += "\n"
+    s = ','.join(map(quote_commas, fields)) + "\n"
     return s, known_assoc_to_write
 
 
@@ -426,7 +419,7 @@ def clusters_cytoscape(dissoc_freq, cluster_dict, poutput):
 
         # write gene-cluster pairs
         for gene in cluster_dict:
-            file.write(f'{gene},cl_{cluster_dict[gene]},5,gene-cluster-member\n')
+            file.write(f'{quote_commas(gene)},cl_{cluster_dict[gene]},5,gene-cluster-member\n')
 
         # write cluster-cluster-dissoc pairs
         for (i, j) in dissoc_freq:
@@ -488,3 +481,12 @@ def sort_output(df, file_name):
     """
 
     df.sort_values(by=['p-value adj', 'Gene_1']).to_csv(file_name, index=False)
+
+
+def quote_commas(s):
+    """
+    Add double quotes around the string, if it contains commas. Necessary to write valid .csv files
+    """
+    if ',' in s:
+        return f"\"{s}\""
+    return s
