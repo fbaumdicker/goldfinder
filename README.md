@@ -176,7 +176,7 @@ Miscellaneous:
 #### `association_clusters.txt`
 This file defines gene clusters as found by Markov clustering based on association scores. Each cluster starts with `>` followed by clulster ID and its size. In the following lines, all genes contained in the cluster are listed.
 
-#### `{score}_{association/dissociation}_significant_pairs.txt`
+#### `{score}_{association/dissociation}_significant_pairs.csv`
 This comma-separated file lists all gene pairs that are significantly associated/dissociated according to the chosen score. If appropriate, it also contains a `Cluster` column with the 1-based number of the cluster, or a `-` if the genes do not belong to the same cluster.
 
 #### `cytoscape_input.csv`
