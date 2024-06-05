@@ -50,6 +50,8 @@ cd goldfinder
 python -m pip install -r requirements.txt
 ```
 
+If you run into an error message like `error: command 'gcc' failed: No such file or directory`, gcc might not be installed. Check this with gcc --version.
+
 ##### Dependencies:
 `Bio`==1.6.0 \
 `DendroPy`==4.6.1 \
