@@ -11,6 +11,7 @@ import scoring
 import argparse
 import random
 import numpy as np
+import tests
 
 
 def argparser():
@@ -24,21 +25,22 @@ def argparser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Input
-    parser.add_argument("-i", "--input", required=True,
-                        help="File containing gene presence/absence data, or panX folder", default=argparse.SUPPRESS)
+    parser.add_argument("-i", "--input", help="File containing gene presence/absence data, or panX "
+                        "folder", default=argparse.SUPPRESS)
     parser.add_argument("-f", "--file_type", nargs='?', choices=["roary", "tab", "panx", "matrix"],
                         default="matrix", help="Clarifying which input file type Goldfinder is "
                         "dealing with: a) roary (or panaroo), b) tab, c) panx d) .csv matrix in "
                         "pandas format")
-    parser.add_argument("-t", "--tree", required=True, nargs='?', const=None,
+    parser.add_argument("-t", "--tree", nargs='?', const=None,
                         help="User's phylogenetic tree in newick string format. Required, but if "
                         "given without argument, a phylogenetic tree is calculated from the input "
-                        "table and used in further analysis.")
+                        "table and used in further analysis.", default=argparse.SUPPRESS)
     # TODO test this parameter with panaroo and panx input
-    parser.add_argument("-m", "--metadata", required=False, help="Path to a tab-separated table "
+    parser.add_argument("-m", "--metadata", help="Path to a tab-separated table "
                         "containing metadata about the genes (e.g. functional annotation, "
                         "groupings, etc.). First column must identify the gene (i.e. coincide with "
-                        "first col of input). The metadata will be included in the results table "
+                        "first col of input), first row must identify the type of metadata. The "
+                        "metadata will be included in the results table "
                         "and occur in the visualization. If the format is roary or panaroo, columns"
                         " 'Non-unique Gene name' and 'Annotation' are used anyway.", default=None)
 
@@ -76,10 +78,10 @@ def argparser():
                         "correction method: bonferroni, false discovery rate, or none")
     parser.add_argument("-k", "--known_associations", nargs='?', default=0, help="Number of surely"
                         " occurring associations (or dissociations) or path to a list in the format"
-                        "'Gene1\\tGene2' of all surely associated gene pairs. Number is inferred "
-                        "from the list and used to improve multiple testing correction (Bonferroni "
-                        "and FDR). If a list, the gene pairs will be marked in the output, even if "
-                        "the corresponding p-value is not siginificant.")
+                        " 'Gene1\\tGene2' (\\t denotes tab) of all surely associated gene pairs.' "
+                        "Number is inferred from the list and used to improve multiple testing "
+                        "correction (Bonferroni and FDR). If a list, the gene pairs will occur "
+                        "in the output, even if the corresponding p-value is not siginificant.")
 
     # Clustering
     parser.add_argument("-inf", "--inflation", nargs='?', default=2.5,
@@ -96,8 +98,30 @@ def argparser():
                         "clusters will be calculated and Cytoscape output will be generated.")
     parser.add_argument("--seed", nargs='?', type=int, help="An integer to be used as a random seed"
                         " in order to make the result reproducible.", default=None)
+    parser.add_argument("--tests", action='store_true', help="Perform tests and exit.")
 
     args = parser.parse_args()
+
+    # Check for required arguments if user does not just want to check tests
+    if not args.tests:
+        missing_args = []
+
+        try:
+            args.input
+        except AttributeError:
+            missing_args.append('-i/--input')
+
+        try:
+            args.tree
+        except AttributeError:
+            missing_args.append('-t/--tree')
+
+        if missing_args:
+            print('Error: the following arguments are required: ' + ', '.join(missing_args))
+            exit('To display the help message, please use goldfinder.py --help')
+
+
+
     return args
 
 
@@ -106,6 +130,10 @@ def main():
 
     random.seed(p.seed)
     np.random.seed(p.seed)
+
+    if p.tests:
+        tests.perform_tests()
+        exit()
 
     print("Checking files and parser arguments")
     checks.check_input_file(p.input, p.file_type)
