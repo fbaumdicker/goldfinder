@@ -82,7 +82,8 @@ Based on this simulated null distribution, a p-value can be assigned to all obse
 
 `python goldfinder/goldfinder.py -i <path to gene presence/absence file> -t <path to phylogenetic tree file>`
 
-`python goldfinder/goldfinder.py -i example_files/matrix_mini_example.csv -t example_files/example.nwk`
+##### Try this example with the cytoscape visualisation jupyter notebook (goldfinder_cytoscape_import.ipynb). Note that '--cooccurrence both' is neccessary for generating 'cytoscape_input.csv'
+`python goldfinder/goldfinder.py -i example_files/matrix_mini_example.csv -t example_files/example.nwk -c both`
 
 `python goldfinder/goldfinder.py -i example_files/roary_mini_example.csv -t example_files/example.nwk -f roary`
 
