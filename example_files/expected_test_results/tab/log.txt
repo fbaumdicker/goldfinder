@@ -1,0 +1,3 @@
+Threshold k of the more extreme scores: 2
+Fraction k_frac of scores in extreme region: 0.3
+Significance level for association: 0.05
