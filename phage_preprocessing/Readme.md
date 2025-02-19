@@ -1,7 +1,24 @@
 # Phage host interaction
 This folder includes a preprocessing script to combine a phage host interaction matrix with bacterial and phage pangenome.
 
-Example usage for adding phage presence to a bacterial pangenome:
+## Input
+Please see the files in `test_small/` for example formats. 
+The pangenomes need to be in roary format. 
+The interaction matrix is given with phages as lines and bacteria as columns, the inverse encoding is also allowed with the `-j` option.
+
+## Output
+The output is written in roary format and includes all lines included in the given bacterial pangenome.
+
+In the **phage presence** mode, one line is added for each phage, where infecting phages are encoded as present and non-infecting phages as absent.
+The reverse encoding will encode infecting phages as absent and non-infecting phages as present.
+To distinguish phages from bacterial genes, `_Phag` is added to the name of each phage.
+
+In the **phage gene** mode, one line is added for each phage gene, where all genes that are present in phages that infect a bacterium are marked as present in that bacterium.
+To distinguish genes names between phages and bacteria, `_Phag` is added to the name of each phage gene.
+The reverse encoding is also available in this mode for completeness, but is less relevant.
+
+## Usage
+Example usage for adding **phage presence** to a bacterial pangenome:
 
 ```commandline
 python pan_interactions.py -i test_small/matrix.txt -m test_small/bact_map.txt -b test_small/roary_mini_example.csv -o test_small/roary_output.csv -r test_small/roary_output_rev.csv 
@@ -9,11 +26,12 @@ python pan_interactions.py -i test_small/matrix.txt -m test_small/bact_map.txt -
 python pan_interactions.py -i test_small/matrix2.txt -j -m test_small/bact_map.txt -b test_small/roary_mini_example.csv -o test_small/roary_output2.csv 
 ```
 
-Example usage for adding phage genes to a bacterial pangenome:
+Example usage for adding **phage genes** to a bacterial pangenome:
 
 ```commandline
 python pan_interactions.py -i test_small/matrix.txt -m test_small/bact_map.txt -n test_small/phage_map.txt -b test_small/roary_mini_example.csv -p test_small/roary_phage.csv -o test_small/roary_output_genes.csv 
 ```
+
 
 Script usage:
 ```commandline

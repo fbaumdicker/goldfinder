@@ -87,7 +87,7 @@ def main():
             spl = line.rstrip().split(",")
             if not pids:
                 pids = spl
-                print(pids)
+                # print(pids)
                 # print(pids[14]) #the first phage
             else:
                 ids = [i for i in range(14, len(spl)) if spl[i] != ""]
