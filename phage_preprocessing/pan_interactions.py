@@ -39,11 +39,11 @@ def main():
             map[spl[1]]=spl[0]
         print("Read map of {} bacteria".format(len(map)))
 
-    pmap={} #key: name in matrix, value: name in pangenome
+    pmap={} #key: name in pangenome, value: name in matrix
     if args.phage_map:
         for line in open(args.phage_map):
             spl = line.split()
-            pmap[spl[0]] = spl[1]
+            pmap[spl[1]] = spl[0]
         print("Read map of {} phages".format(len(map)))
 
     #read interaction matrix
