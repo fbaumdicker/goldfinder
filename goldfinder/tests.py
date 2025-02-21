@@ -54,13 +54,13 @@ def perform_tests():
         print('Tests failed. Following files could not be compared:')
         for file in error:
             print(file)
-        print('Please check files and then delete golfinder/tmp folder manually.')
+        print('Please check files and then delete goldfinder/tmp folder manually.')
 
     if mismatch:
         print('Tests failed. Following files yielded different results:')
         for file in mismatch:
             print(file)
-        print('Please check files and then delete golfinder/tmp folder manually.')
+        print('Please check files and then delete goldfinder/tmp folder manually.')
 
     if not error and not mismatch:
         print('Tests successful!')
