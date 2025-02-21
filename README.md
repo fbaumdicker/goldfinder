@@ -50,6 +50,11 @@ cd goldfinder
 python -m pip install -r requirements.txt
 ```
 
+If you run into an error message like `error: command 'gcc' failed: No such file or directory`, gcc might not be installed. Check this with gcc --version.
+
+On Windows, if pip throws an error "Cannot open include file: 'io.h': No such file or directory", you might need to install Microsoft C++ compiler. Get it here: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+And also tick SDK for Desktop C++. Refer to: https://stackoverflow.com/questions/40018405/cannot-open-include-file-io-h-no-such-file-or-directory
+
 ##### Dependencies:
 `Bio`==1.6.0 \
 `DendroPy`==4.6.1 \
@@ -175,7 +180,7 @@ Miscellaneous:
 #### `association_clusters.txt`
 This file defines gene clusters as found by Markov clustering based on association scores. Each cluster starts with `>` followed by clulster ID and its size. In the following lines, all genes contained in the cluster are listed.
 
-#### `{score}_{association/dissociation}_significant_pairs.txt`
+#### `{score}_{association/dissociation}_significant_pairs.csv`
 This comma-separated file lists all gene pairs that are significantly associated/dissociated according to the chosen score. If appropriate, it also contains a `Cluster` column with the 1-based number of the cluster, or a `-` if the genes do not belong to the same cluster.
 
 #### `cytoscape_input.csv`

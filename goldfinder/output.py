@@ -21,7 +21,7 @@ def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cl
         cluster_size_viz(clusters, hist_file)
 
     print("Writing significant gene pairs to output")
-    gene_pair_file = f'{poutput}/{pscore}_{mode}_significant_pairs.txt'
+    gene_pair_file = f'{poutput}/{pscore}_{mode}_significant_pairs.csv'
     write_significant_gp(p_values_adj, p_values_unadj, significant_score_indices, cluster_dict,
                          locus_dict, gene_pair_file, pfile_type, perform_clustering, metadata,
                          known_assoc)
@@ -238,9 +238,9 @@ def assemble_gp_line(gene_1, gene_2, file_type, p_unadj, p_adj, locus_dict, perf
 
     if metadata is not None:
         s += ","
-        s += ",".join(metadata.loc[gene_1, :])
+        s += ",".join(metadata.loc[gene_1, :].astype(str))
         s += ","
-        s += ",".join(metadata.loc[gene_2, :])
+        s += ",".join(metadata.loc[gene_2, :].astype(str))
 
     if known_assoc_to_write is not None:
         s += ","

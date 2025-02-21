@@ -1,0 +1,7 @@
+Gene_1,Gene_name_1,Annotation_1,Gene_2,Gene_name_2,Annotation_2,p-value unadj,p-value adj,Cluster,Meta1_1,Meta2_1,Meta1_2,Meta2_2,provided_as_associated
+I,,,h,,,0.0,0.0,2,sd,6,e,4,no
+m,,,a,geneA,hypothetical protein,0.0,0.0,1,d,4,a,2,no
+r,,,a,geneA,hypothetical protein,0.0,0.0,1,d,2,a,2,no
+r,,,m,,,0.0,0.0,1,d,2,d,4,no
+b,,,a,geneA,hypothetical protein,0.001009727,0.12420821,-,d,4,a,2,no
+r,,,q,,,0.1585676,1.0,-,d,2,,1,no
