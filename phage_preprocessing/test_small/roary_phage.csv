@@ -1,0 +1,6 @@
+Gene,Non-unique Gene name,Annotation,No. isolates,No. sequences,Avg sequences per isolate,Genome Fragment,Order within Fragment,Accessory Fragment,Accessory Order with Fragment,QC,Min group size nuc,Max group size nuc,Avg group size nuc,v1,v2,v3
+a,,,,,,,,,,,,,,x,,x
+b,,,,,,,,,,,,,,,x,x
+c,,,,,,,,,,,,,,x,,x
+d,,,,,,,,,,,,,,x,,
+e,,,,,,,,,,,,,,x,,x

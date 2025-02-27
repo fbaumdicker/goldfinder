@@ -5,7 +5,7 @@
 
 <h1 align="center"> Goldfinder </h1>
 
-<h3 align="center">A tool for identifying significant gene co-occurrances in
+<h3 align="center">A tool for identifying significant gene co-occurrences in
 microbial strains while accounting for their
 phylogenetic relationship</h3>
 
