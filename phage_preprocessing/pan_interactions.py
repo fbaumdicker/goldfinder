@@ -20,6 +20,7 @@ def parsing_cmd_line():
     parser.add_argument("-p","--phage_pan", type=str, required=False, help="Phage pangenome in roary format (optional)",dest="phag", default="")
     parser.add_argument("-m","--bact_map", type=str, required=False, help="Map (tab-separated file) with bacteria names in interaction matrix (first column) and pangenome (second column)",dest="bact_map",default="")
     parser.add_argument("-n","--phage_map", type=str, required=False, help="Map (tab-separated file) with phage names in interaction matrix (first column) and pangenome (second column)",dest="phage_map",default="")
+    parser.add_argument("-a","--phage_gene_AND", help="Only mark phage genes as present if they are present in ALL phages that can infect a bacterium (default:off)",default=False,action='store_true',dest="phage_and")
     parser.add_argument("-o", "--out", type=str, required=True, help="output file", dest="outf")
     parser.add_argument("-r", "--out_rev", type=str, required=False, help="output file for reverse encoding of phages", dest="outf_rev",default="")
 
@@ -49,6 +50,7 @@ def main():
     #read interaction matrix
     pids=[]
     phages={} #key: phage, value: list of bact
+    bacteria=[]
     if args.phage_column:
         b=0
         for line in open(args.inter):
@@ -56,6 +58,7 @@ def main():
             if not pids: pids=spl
             else:
                 if spl:
+                    bacteria.append(spl[0])
                     b+=1
                     ids=[i for i in range(1,len(spl)) if spl[i] not in ["","0"]]
                     aphages=[pids[i] for i in ids] #list of phages
@@ -75,7 +78,15 @@ def main():
                     porg+=1
                     ids = [i for i in range(1, len(spl)) if spl[i] not in ["", "0"]]
                     phages[spl[0]]=[pids[i] for i in ids]
-        b=len(pids)-1
+        bacteria=pids[1:]
+        b = len(bacteria)
+    bacteria_count={}
+    for bact in bacteria:
+        bc=0
+        for p in phages:
+            if bact in phages[p]:bc+=1
+        bacteria_count[bact]=bc
+    #print(bacteria_count)
     print ("Read interaction matrix of {} phages and {} bacteria, continue with {} phages with positive interactions".format(porg,b,len(phages)))
 
     #Read phage pangenome
@@ -126,13 +137,26 @@ def main():
     else:
         for pg in phage_genes:
             #print(pg)
-            aline=[""]*len(gnames)
-            aline[0]=pg
-            for p in phage_genes[pg]:
-                #print(p)
-                if pmap:p=pmap[p]
-                for g in phages[p]:
-                    if g in gnames: aline[gnames.index(g)]="x"
+            if args.phage_and:
+                #print(gnames)
+                aline = [0] * len(gnames)
+                aline[0] = pg
+                for p in phage_genes[pg]: # key: phage gene group, value: phage accessions
+                    #print(p)
+                    if pmap:p=pmap[p]
+                    for g in phages[p]: #key: phage, value: list of bact
+                        if g in gnames: aline[gnames.index(g)]+=1
+                for i in range(14,len(gnames)):
+                    if bacteria_count[gnames[i]]==aline[i]:aline[i]="x"
+                    else:aline[i]=""
+            else:
+                aline = [""] * len(gnames)
+                aline[0] = pg
+                for p in phage_genes[pg]:
+                    #print(p)
+                    if pmap:p=pmap[p]
+                    for g in phages[p]:
+                        if g in gnames: aline[gnames.index(g)]="x"
             if aline.count("x") > 0:
                 aline[1:14]=phage_header[pg]
                 outf.write(",".join(aline)+"\n")
