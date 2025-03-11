@@ -32,14 +32,19 @@ Example usage for adding **phage genes** to a bacterial pangenome:
 python pan_interactions.py -i test_small/matrix.txt -m test_small/bact_map.txt -n test_small/phage_map.txt -b test_small/roary_mini_example.csv -p test_small/roary_phage.csv -o test_small/roary_output_genes.csv 
 ```
 
+By default, any gene that is present in any phage that can infect a particular bacterium is encoded as present in that bacterium. With `-a` it can be enforced that only genes present in ALL phages that infect a bacterium are encoded as present
+
+```commandline
+python pan_interactions.py -a -i test_small/matrix.txt -m test_small/bact_map.txt -n test_small/phage_map.txt -b test_small/roary_mini_example.csv -p test_small/roary_phage.csv -o test_small/roary_output_genesall.csv 
+```
 
 Script usage:
 ```commandline
-usage: pan_interactions.py [-h] -i INTER [-s SEP] [-j] -b BACT [-p PHAG] [-m BACT_MAP] [-n PHAGE_MAP] -o OUTF [-r OUTF_REV]
+usage: pan_interactions.py [-h] -i INTER [-s SEP] [-j] -b BACT [-p PHAG] [-m BACT_MAP] [-n PHAGE_MAP] [-a] -o OUTF [-r OUTF_REV]
 
 Combine pangenomes and interaction matrix
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
   -i INTER, --interactions INTER
                         Interaction matrix (empty cell or 0 means negative interactions, all other entries indicate positive interaction)
@@ -54,6 +59,7 @@ options:
                         Map (tab-separated file) with bacteria names in interaction matrix (first column) and pangenome (second column)
   -n PHAGE_MAP, --phage_map PHAGE_MAP
                         Map (tab-separated file) with phage names in interaction matrix (first column) and pangenome (second column)
+  -a, --phage_gene_AND  Only mark phage genes as present if they are present in ALL phages that can infect a bacterium (default:off)
   -o OUTF, --out OUTF   output file
   -r OUTF_REV, --out_rev OUTF_REV
                         output file for reverse encoding of phages
