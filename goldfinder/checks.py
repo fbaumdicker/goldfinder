@@ -40,6 +40,10 @@ def roary_check(roary_file):
     except FileNotFoundError:
         exit('Could not find specified file. Perhaps a typo or you gave a panX folder without '
              'specifying -f panx?')
+    except pd.errors.ParserError as e:
+        print("\nEncountered a parser error. Did you specify the correct input format using -f?")
+        print("If so, your file might contain unquoted commas. This was the pandas error:")
+        exit(e)
 
     if list(df.columns.values)[0:13] != ['Non-unique Gene name', 'Annotation', 'No. isolates',
                                          'No. sequences', 'Avg sequences per isolate',
