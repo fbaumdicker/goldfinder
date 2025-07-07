@@ -17,7 +17,7 @@ def general_preproc(df):
     """
     print("Preprocessing: Removing genes appearing in all genomes")
     ns = len(df.columns)  # get number of samples
-    df = df.loc[df.sum(axis=1) != ns]  # remove genes present in every sample
+    df = df.loc[(df.sum(axis=1) != ns) & (df.sum(axis=1) != 0)]  # remove genes present in every sample
 
     return df
 
