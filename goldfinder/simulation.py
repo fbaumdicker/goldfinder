@@ -206,8 +206,8 @@ def additional_simu_new(scores, dist_one, dist_zero, dist_both, new_tree, branch
 
     k_frac = k_frac / dist_sum
 
-    output.write_log(poutput, f"Threshold k of the more extreme scores: {k}")
-    output.write_log(poutput, f"Fraction k_frac of scores in extreme region: {k_frac}")
+    output.write_log(poutput, f"Threshold k of the more extreme simultaneous scores: {k}")
+    output.write_log(poutput, f"Fraction k_frac of simultaneous scores in extreme region: {k_frac}")
 
     # Stop additional simulation if it is not more fine-grained than default simulation
     if k_frac == 1:

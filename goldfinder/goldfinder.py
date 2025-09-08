@@ -163,6 +163,9 @@ def main():
      new_dist_both) = simulation.simu(fitch_score_root_one, fitch_score_root_zero,
                                       fitch_score_root_both, tree_struc, branch_distances,
                                       int(p.genes_simulated))
+    output.write_log(p.output, f"fitch score distribution for root state 1: {fitch_score_root_one}")
+    output.write_log(p.output, f"fitch score distribution for root state 0: {fitch_score_root_zero}")
+    output.write_log(p.output, f"fitch score distribution for unknown root state: {fitch_score_root_both}")
 
     # Calculate scores for simulated data and input data")
     null_dist_scores, input_scores = scoring.scoring_procedure(
