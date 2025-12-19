@@ -48,7 +48,7 @@ def simu(dist_one, dist_zero, dist_both, new_tree, branch_dist, s):
 
         if sum(dist_one) != distribution_dict["1"]:
             m = dist_one.index(max(dist_one))
-            if sum(dist_one) < s:
+            if sum(dist_one) < distribution_dict["1"]:
                 dist_one[m] = dist_one[m] + (distribution_dict["1"] - sum(dist_one))
             else:
                 dist_one[m] = dist_one[m] - (sum(dist_one)-distribution_dict["1"])
@@ -71,7 +71,7 @@ def simu(dist_one, dist_zero, dist_both, new_tree, branch_dist, s):
 
         if sum(dist_zero) != distribution_dict["0"]:
             m = dist_zero.index(max(dist_zero))
-            if sum(dist_zero) < s:
+            if sum(dist_zero) < distribution_dict["0"]:
                 dist_zero[m] = dist_zero[m] + (distribution_dict["0"] - sum(dist_zero))
             else:
                 dist_zero[m] = dist_zero[m] - (sum(dist_zero)-distribution_dict["0"])
@@ -95,7 +95,7 @@ def simu(dist_one, dist_zero, dist_both, new_tree, branch_dist, s):
 
         if sum(dist_both) != distribution_dict["2"]:
             m = dist_both.index(max(dist_both))
-            if sum(dist_both) < s:
+            if sum(dist_both) < distribution_dict["2"]:
                 dist_both[m] = dist_both[m] + (distribution_dict["2"] - sum(dist_both))
             else:
                 dist_both[m] = dist_both[m] - (sum(dist_both)-distribution_dict["2"])
@@ -213,12 +213,17 @@ def additional_simu_new(scores, dist_one, dist_zero, dist_both, new_tree, branch
     if k_frac == 1:
         return None, None, None, None, k, k_frac
 
-    # Determine how many genes are allocated to each distribution
-    total = sum(dist_both.values()) + sum(dist_one.values()) + sum(dist_zero.values())
+    # Determine how many genes with homoplasy >= k are allocated to each distribution
+    
+    d1k = {key: dist_one[key] for key in dist_one if key >= k}
+    d0k = {key: dist_zero[key] for key in dist_zero if key >= k}
+    d2k = {key: dist_both[key] for key in dist_both if key >= k}
+    
+    total = sum(d2k.values()) + sum(d1k.values()) + sum(d0k.values())
     num_sim_genes_with_root_state = {}
-    num_sim_genes_with_root_state["1"] = round(sum(dist_one.values())/total * s)
-    num_sim_genes_with_root_state["0"] = round(sum(dist_zero.values())/total * s)
-    num_sim_genes_with_root_state["2"] = round(sum(dist_both.values())/total * s)
+    num_sim_genes_with_root_state["1"] = round(sum(d1k.values())/total * s)
+    num_sim_genes_with_root_state["0"] = round(sum(d0k.values())/total * s)
+    num_sim_genes_with_root_state["2"] = round(sum(d2k.values())/total * s)
 
     # if for whatever reason they do not add up to s, reduce/increase homoplasy dist with most genes
     if sum(num_sim_genes_with_root_state.values()) != s:
