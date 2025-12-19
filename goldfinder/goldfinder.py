@@ -60,10 +60,10 @@ def argparser():
                         "(Neighbor joining), ml (Maximum likelihood). Default: nj")
 
     # Simulation
-    parser.add_argument("-g", "--genes_simulated", nargs='?', default=10000,
+    parser.add_argument("-g", "--genes_simulated", nargs='?', default=50000,
                         help="integer specifying number of genes to be simulated for estimating the"
                         " null distribution.")
-    parser.add_argument("-add", "--additional", default=0.9999, type=float, help="Percentile of "
+    parser.add_argument("-add", "--additional", default=0.999, type=float, help="Percentile of "
                         "scores for which addional fine-grained simulation will be performed. Only "
                         "relevant for simultaneous score.")
 
