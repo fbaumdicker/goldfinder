@@ -136,11 +136,11 @@ Preprocessing:
 Simulation:
   -g [GENES_SIMULATED], --genes_simulated [GENES_SIMULATED]
                         integer specifying number of genes to be simulated for estimating
-                        the null distribution. (default: 10000)
+                        the null distribution. (default: 50000)
   -add ADDITIONAL, --additional ADDITIONAL
                         Percentile of scores for which addional fine-grained simulation
                         will be performed. Only relevant for simultaneous score.
-                        (default: 0.9999)
+                        (default: 0.999)
 
 Testing:
   -s [{terminal,simultaneous,subsequent,coinfinder}], --score [{terminal,simultaneous,subsequent,coinfinder}]
