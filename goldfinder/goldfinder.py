@@ -35,14 +35,8 @@ def argparser():
                         help="User's phylogenetic tree in newick string format. Required, but if "
                         "given without argument, a phylogenetic tree is calculated from the input "
                         "table and used in further analysis.", default=argparse.SUPPRESS)
-    # TODO test this parameter with panaroo and panx input
-    parser.add_argument("-m", "--metadata", help="Path to a tab-separated table "
-                        "containing metadata about the genes (e.g. functional annotation, "
-                        "groupings, etc.). First column must identify the gene (i.e. coincide with "
-                        "first col of input), first row must identify the type of metadata. The "
-                        "metadata will be included in the results table "
-                        "and occur in the visualization. If the format is roary or panaroo, columns"
-                        " 'Non-unique Gene name' and 'Annotation' are used anyway.", default=None)
+
+    
 
     # Output
     parser.add_argument("-o", "--output", nargs='?', default="./output",
@@ -89,6 +83,38 @@ def argparser():
                         "needs to be >1")
     parser.add_argument("-n", "--no_clustering", action='store_true', help="Set this if no "
                         "clustering should be performed.")
+    parser.add_argument("-cl_dis_method", "--cluster_dissoc_method", choices=["standard", "gene_based", "both"],
+                        default="standard",
+                        help=(
+                        "Method used to calculate cluster dissociation (only applicable in dissociation mode). "
+                        "Standard method: fraction of significantly dissociated gene pairs between clusters. "
+                        "Gene-based method: proportion of genes in each cluster that are dissociated with at least a threshold fraction "
+                        "of genes in the other cluster (reduces bias from cluster size and highlights consistent gene-level patterns)."))
+    parser.add_argument("-disT", "--gene_dissoc_threshold", type=float, default=0.5,
+                        help=(
+                            "Gene-based method only. Minimum fraction (0–1) of genes in the opposite cluster "
+                            "a gene must be dissociated with to count as a hit (default: 0.5)."))
+    parser.add_argument("-hitT", "--cluster_dissoc_threshold", type=float, default=0.0,
+                        help=(
+                            "Gene-based method only. Minimum GeneForce (0–1) required to report a cluster–cluster "
+                            "dissociation (default: 0.0)."))
+    
+    # Visualization
+    # TODO test this parameter with panaroo and panx input
+    parser.add_argument("-m", "--metadata", required=False, help="Path to a tab-separated table "
+                        "containing metadata about the genes (e.g. functional annotation, "
+                        "groupings, etc.). First column (Gene) must identify the gene (i.e. coincide with "
+                        "first col of input). The metadata will"
+                        " occur in the visualization. If the format is roary or panaroo, columns"
+                        " 'Non-unique Gene name' and 'Annotation' are used anyway.", default=None)
+    parser.add_argument("-vis", "--visualization", choices=["yes","no","only"], default="yes",
+                        help="Set this if you want to generate visualization files for Cytoscape. If " 
+                        "clustering is enabled, cluster info will be included. If set to 'only', only " \
+                        "visualization files will be generated based on the metadata, but no other output files"
+                        " (assumes goldfinder has been run already and the files are in the output folder). If " \
+                        "set to 'no', no visualization files will be generated (saves time on main pipeline). If " \
+                        "set to 'yes', visualization files will be generated as part of the main pipeline "
+                        "(consecutively).")
 
     # Miscellaneous
     parser.add_argument("-c", "--coocurrence", nargs='?', choices=["association", "dissociation",
@@ -128,102 +154,126 @@ def argparser():
 def main():
     p = argparser()
 
-    random.seed(p.seed)
-    np.random.seed(p.seed)
-
     if p.tests:
         tests.perform_tests()
         exit()
 
-    print("Checking files and parser arguments")
-    checks.check_input_file(p.input, p.file_type)
+    modes = ["association", "dissociation"] if p.coocurrence == 'both' else [p.coocurrence]
 
-    print("Creating output folder")
-    output.create_output_folder(p.output, p.force_output)
+    if p.visualization != 'only':
+        random.seed(p.seed)
+        np.random.seed(p.seed)
 
-    print("Loading data")
-    df, locus_dict, metadata, num_known_assoc, known_assoc = data_import.load_input(
+        print("Checking files and parser arguments")
+        checks.check_input_file(p.input, p.file_type)
+
+        print("Creating output folder")
+        output.create_output_folder(p.output, p.force_output)
+
+        print("Loading data")
+        df, locus_dict, metadata, num_known_assoc, known_assoc = data_import.load_input(
         p.input, p.file_type, p.metadata, p.known_associations)
 
-    # Preprocessing
-    pre_df = preprocessing.preproc(df, p.preprocess)
+        # Preprocessing
+        pre_df = preprocessing.preproc(df, p.preprocess)
 
-    # Constructing tree structure from nwk string or from distance matrix
-    tree_struc, tip_lvlorder, branch_distances = tree_reconstruction.main(p.tree, p.tree_inference,
-                                                                          pre_df, p.output)
+        # Constructing tree structure from nwk string or from distance matrix
+        tree_struc, tip_lvlorder, branch_distances = tree_reconstruction.main(p.tree, p.tree_inference,
+                                                                            pre_df, p.output)
 
-    print("Ancestral reconstruction and determining homoplasy distribution")
-    # fitch score dicts are used to determine how often which number of mutations is simulated
-    (input_leaves_state, input_desc_state, input_anc_state, fitch_score_root_one,
-     fitch_score_root_zero, fitch_score_root_both) = anc_recon.recon(pre_df, tree_struc,
-                                                                     tip_lvlorder)
+        print("Ancestral reconstruction and determining homoplasy distribution")
+        # fitch score dicts are used to determine how often which number of mutations is simulated
+        (input_leaves_state, input_desc_state, input_anc_state, fitch_score_root_one,
+        fitch_score_root_zero, fitch_score_root_both) = anc_recon.recon(pre_df, tree_struc,
+                                                                        tip_lvlorder)
 
-    print("Simulate for three possible root states")
-    (simul_anc_states, simul_desc_states, simul_leaves, simul_counts, new_dist_one, new_dist_zero,
-     new_dist_both) = simulation.simu(fitch_score_root_one, fitch_score_root_zero,
-                                      fitch_score_root_both, tree_struc, branch_distances,
-                                      int(p.genes_simulated))
-    output.write_log(p.output, f"fitch score distribution for root state 1: {fitch_score_root_one}")
-    output.write_log(p.output, f"fitch score distribution for root state 0: {fitch_score_root_zero}")
-    output.write_log(p.output, f"fitch score distribution for unknown root state: {fitch_score_root_both}")
+        print("Simulate for three possible root states")
+        (simul_anc_states, simul_desc_states, simul_leaves, simul_counts, new_dist_one, new_dist_zero,
+        new_dist_both) = simulation.simu(fitch_score_root_one, fitch_score_root_zero,
+                                        fitch_score_root_both, tree_struc, branch_distances,
+                                        int(p.genes_simulated))
+        output.write_log(p.output, f"fitch score distribution for root state 1: {fitch_score_root_one}")
+        output.write_log(p.output, f"fitch score distribution for root state 0: {fitch_score_root_zero}")
+        output.write_log(p.output, f"fitch score distribution for unknown root state: {fitch_score_root_both}")
 
-    # Calculate scores for simulated data and input data")
-    null_dist_scores, input_scores = scoring.scoring_procedure(
-        p.score, simul_anc_states, simul_desc_states, simul_leaves, simul_counts,
-        fitch_score_root_one, fitch_score_root_zero, fitch_score_root_both, tree_struc,
-        branch_distances, int(p.genes_simulated), pre_df, input_anc_state, input_desc_state,
-        input_leaves_state, p.output)
+        # Calculate scores for simulated data and input data")
+        null_dist_scores, input_scores = scoring.scoring_procedure(
+            p.score, simul_anc_states, simul_desc_states, simul_leaves, simul_counts,
+            fitch_score_root_one, fitch_score_root_zero, fitch_score_root_both, tree_struc,
+            branch_distances, int(p.genes_simulated), pre_df, input_anc_state, input_desc_state,
+            input_leaves_state, p.output)
 
-    # Additional simulation of distribution's tail so far only implemented for simulatenous score
-    if p.score == "simultaneous":
-        print("Additional Simulation for extreme region(s)")
-        (add_simul_anc_states, add_simul_desc_states, add_simul_leaves, add_simul_counts, k,
-         k_frac) = simulation.additional_simu_new(
-             null_dist_scores, fitch_score_root_one, fitch_score_root_zero, fitch_score_root_both,
-             tree_struc, branch_distances, int(p.genes_simulated), p.output, p.additional)
+        # Additional simulation of distribution's tail so far only implemented for simulatenous score
+        if p.score == "simultaneous":
+            print("Additional Simulation for extreme region(s)")
+            (add_simul_anc_states, add_simul_desc_states, add_simul_leaves, add_simul_counts, k,
+            k_frac) = simulation.additional_simu_new(
+                null_dist_scores, fitch_score_root_one, fitch_score_root_zero, fitch_score_root_both,
+                tree_struc, branch_distances, int(p.genes_simulated), p.output, p.additional)
 
-        if k_frac == 1.0:
-            print("Warning: No additional simulation performed. Please use a larger percentile.")
-        else:
-            print("Scoring of additional simulation")
-            null_dist_scores = scoring.additional_scoring(
-                add_simul_anc_states, add_simul_desc_states, add_simul_counts, k, k_frac,
-                null_dist_scores, p.output)
+            if k_frac == 1.0:
+                print("Warning: No additional simulation performed. Please use a larger percentile.")
+            else:
+                print("Scoring of additional simulation")
+                null_dist_scores = scoring.additional_scoring(
+                    add_simul_anc_states, add_simul_desc_states, add_simul_counts, k, k_frac,
+                    null_dist_scores, p.output)
 
-    cluster_dict = None
-    modes = ["association", "dissociation"] if p.coocurrence == 'both' else [p.coocurrence]
-    for mode in modes:
-        print(f"Testing for {mode}")
-        significant_score_indices, p_values_unadj, p_values_adj, sig_lvl, known_assoc = \
-            testing.testing_procedure(null_dist_scores, input_scores, mode, p.alpha,
-                                      p.pvalue_correction, p.output, num_known_assoc, known_assoc)
+        cluster_dict = None
+        for mode in modes:
+            print(f"Testing for {mode}")
+            significant_score_indices, p_values_unadj, p_values_adj, sig_lvl, known_assoc = \
+                testing.testing_procedure(null_dist_scores, input_scores, mode, p.alpha,
+                                        p.pvalue_correction, p.output, num_known_assoc, known_assoc)
 
-        if p.coocurrence == 'both' and mode == 'dissociation' and not p.no_clustering:
-            print("Calculating Average Dissociation between Clusters")
-            dissoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj,
-                                                       p.file_type in ["tab", "matrix"])
+            if p.coocurrence == 'both' and mode == 'dissociation' and not p.no_clustering:
+                print("Calculating Average Dissociation between Clusters")
+                if p.cluster_dissoc_method in ["standard", "both"]:
+                    dissoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj,
+                                                            p.file_type in ["tab", "matrix"])
+                    # Write to file, along with global fraction of significantly dissociated gene pairs
+                    num_significant = significant_score_indices[0].size
+                    num_gene_pairs = input_scores.shape[0] * (input_scores.shape[0] - 1) / 2
+                    output.cluster_dissoc(dissoc_freq, num_significant / num_gene_pairs, p.output)
 
-            # Write to file, along with global fraction of significantly dissociated gene pairs
-            num_significant = significant_score_indices[0].size
-            num_gene_pairs = input_scores.shape[0] * (input_scores.shape[0] - 1) / 2
-            output.cluster_dissoc(dissoc_freq, num_significant / num_gene_pairs, p.output)
+                #output.clusters_cytoscape(dissoc_freq, cluster_dict, p.output)
+            else:
+                dissoc_freq = {}
 
-            output.clusters_cytoscape(dissoc_freq, cluster_dict, p.output)
-
-        perform_clustering = mode == "association" and not p.no_clustering
-        if perform_clustering:
-            print("Clustering")
-        cluster_dict, clusters = clustering.cluster_procedure(p_values_adj, sig_lvl,
+            perform_clustering = mode == "association" and not p.no_clustering
+            if perform_clustering:
+                print("Clustering")
+            cluster_dict, clusters = clustering.cluster_procedure(p_values_adj, sig_lvl,
                                                               float(p.inflation), p.output,
                                                               perform_clustering)
 
-        print(f"Preparing output files for {mode}")
-        output.result_procedure(p_values_adj, p_values_unadj, significant_score_indices,
-                                cluster_dict, clusters, locus_dict, p.output, p.score, mode,
-                                p.file_type, perform_clustering, metadata,
-                                known_assoc, p.coocurrence == 'both' and not p.no_clustering)
+            print(f"\nPreparing output files for {mode}")
+            output.result_procedure(p_values_adj, p_values_unadj, significant_score_indices,
+                                    cluster_dict, clusters, locus_dict, p.output, p.score, mode,
+                                    p.file_type, perform_clustering,
+                                    known_assoc, p.cluster_dissoc_method, 
+                                    p.cluster_dissoc_threshold, p.gene_dissoc_threshold)
+            
 
-    print("Analysis is finished")
+            
+    if p.visualization != "no":
+        print("Preparing visualization files for Cytoscape")
+        for mode in modes:
+            cytoscape_file = f'{p.output}/cytoscape_input.xlsx'
+            gene_pair_file = f'{p.output}/{p.score}_{mode}_significant_pairs.txt'
+            if p.no_clustering or mode == "dissociation":
+                cluster_file = None
+            else:
+                cluster_file = f'{p.output}/{mode}_clusters.txt'
+            dissoc_freq_file = f'{p.output}/Dissociation_between_clusters.csv'
+            output.create_cytoscape_files(cytoscape_file, mode, gene_pair_file, p.output, dissoc_freq_file, cluster_dict={},
+                                cluster_file=cluster_file, pfile_type=p.file_type,
+                                metadata_file = p.metadata)
+    else:
+        print("\nVisualization files will not be generated as per user input. If you want to generate them after the" \
+        " analysis is finished, " \
+        "please run goldfinder with the parameter \'-vis only\'.")
+    print("\nAnalysis is finished")
 
 
 if __name__ == "__main__":
