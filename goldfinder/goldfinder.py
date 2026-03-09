@@ -177,7 +177,9 @@ def main():
             num_gene_pairs = input_scores.shape[0] * (input_scores.shape[0] - 1) / 2
             output.cluster_dissoc(dissoc_freq, num_significant / num_gene_pairs, p.output)
 
-            output.clusters_cytoscape(dissoc_freq, cluster_dict, p.output)
+            #output.clusters_cytoscape(dissoc_freq, cluster_dict, p.output)
+        else:
+            dissoc_freq = {}
 
         perform_clustering = mode == "association" and not p.no_clustering
         if perform_clustering:
@@ -186,13 +188,13 @@ def main():
                                                               float(p.inflation), p.output,
                                                               perform_clustering)
 
-        print(f"Preparing output files for {mode}")
+        print(f"\nPreparing output files for {mode}")
         output.result_procedure(p_values_adj, p_values_unadj, significant_score_indices,
                                 cluster_dict, clusters, locus_dict, p.output, p.score, mode,
-                                p.file_type, perform_clustering, metadata,
+                                p.file_type, perform_clustering, metadata, dissoc_freq,
                                 known_assoc, p.coocurrence == 'both' and not p.no_clustering)
 
-    print("Analysis is finished")
+    print("\nAnalysis is finished")
 
 
 if __name__ == "__main__":
