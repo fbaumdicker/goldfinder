@@ -1,3 +1,5 @@
+from csv import writer
+import csv
 import skbio
 from io import StringIO
 from tqdm import tqdm
@@ -5,11 +7,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import clustering
-import visualization
+import data_import
 
 def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cluster_dict,
                      clusters, locus_dict, poutput, pscore, mode, pfile_type, perform_clustering,
-                     metadata, dissoc_freq, known_assoc, write_cytoscape):
+                     known_assoc):
 
     if clusters:
         print("Writing association clusters")
@@ -32,14 +34,16 @@ def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cl
     df = pd.read_csv(gene_pair_file, low_memory=False)
     sort_output(df, gene_pair_file)
 
+    '''
     cytoscape_file = f'{poutput}/cytoscape_input.xlsx'
     create_cytoscape_files(cytoscape_file, mode, gene_pair_file, poutput, dissoc_freq, cluster_dict={},
                            cluster_file=cluster_file, p_values_adj=p_values_adj, pfile_type=pfile_type,
                            metadata=metadata)
+    '''
 
 '''function to generate all files required by cytoscape for network visualization'''
-def create_cytoscape_files(cytoscape_file, mode, gene_pair_file, poutput, dissoc_freq, cluster_dict = {}, cluster_file=None,
-                           p_values_adj = None, pfile_type = "matrix", metadata=None):
+def create_cytoscape_files(cytoscape_file, mode, gene_pair_file, poutput, dissoc_freq_file, cluster_dict = {}, cluster_file=None,
+                           p_values_adj = None, pfile_type = "matrix", metadata_file=None):
     '''
     cluster_dict: gene to cluster dictionary. if the dictionary is empty but the is a file, 
         the dictionary will be generated from the file.
@@ -48,7 +52,7 @@ def create_cytoscape_files(cytoscape_file, mode, gene_pair_file, poutput, dissoc
 
     print("Creating files for cytoscape")
 
-    
+    dissoc_freq = read_dissoc_freq(dissoc_freq_file)
 
     if len(cluster_dict) == 0 and cluster_file is not None:
         with open(cluster_file, 'r') as infile:
@@ -64,13 +68,24 @@ def create_cytoscape_files(cytoscape_file, mode, gene_pair_file, poutput, dissoc
 
     df = pd.read_csv(gene_pair_file, low_memory=False)
 
+    ###read metadata
+    if metadata_file is not None:
+        metadata = pd.read_csv(metadata_file, sep='\t', index_col=0, header=0, dtype=str)
+    else:
+        metadata = None
+
     write_node_metadata(poutput, cluster_dict, df, metadata)
 
+    if p_values_adj is None:
+        # try to get them from the file - only significant ones will be included!!!!
+        if 'p-value adj' in df.columns:
+            p_values_adj = df.pivot(index='Gene_1', columns='Gene_2', values='p-value adj')
+        else:
+            print("Warning: could not find adjusted p-values for gene pairs. Force of association/dissociation will not be calculated.")
+            p_values_adj = None
 
     clusterfile_name = f'{poutput}/cytoscape_input.xlsx'
-    ### do only once, in case mode is both
-    if not os.path.exists(clusterfile_name):
-        clusters_cytoscape(cluster_dict, clusterfile_name)
+    clusters_cytoscape(cluster_dict, clusterfile_name)
 
     if mode == 'association':
         print("Writing Associated Gene Pairs for Cytoscape Visualization")
@@ -93,6 +108,7 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
     nodes_file =  f'{poutput}/cytoscape_input.xlsx'
     nodes_label = 'nodes_metadata'
     append = True
+
     try:
         ### try to get existing nodes if possible
         nodes_df = pd.read_excel(nodes_file, sheet_name=nodes_label)
@@ -112,19 +128,33 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
 
     ### add metadata columns
     if metadata is not None:
+        print("Adding metadata to node table")
         metadata.reset_index(inplace=True)
         if 'index' in metadata.columns:
             metadata.drop(columns=['index'], inplace=True)
         try:
-            nodes_df = nodes_df.merge(metadata, left_on='Node', right_on='Gene')
-            nodes_df.drop(columns=['Gene'], inplace=True)
-        except:
+            nodes_df = nodes_df.merge(
+                metadata,
+                left_on='Node',
+                right_on='Gene',
+                how='left',
+                suffixes=('', '_meta')
+            )
+
+            # overwrite existing columns only where metadata exists
+            for col in metadata.columns:
+                if col != 'Gene' and f"{col}_meta" in nodes_df.columns:
+                    nodes_df[col] = nodes_df[f"{col}_meta"].combine_first(nodes_df.get(col))
+
+            nodes_df.drop(columns=[c for c in nodes_df.columns if c.endswith('_meta')] + ['Gene'], inplace=True)
+        except Exception as e:
             print("Warning: could not include metadata in node table. "
                     "Is there a Gene column? Check the files!")
+            print(e)
     #Now to add cluster info
     if len(cluster_dict) > 0:
         node_members = nodes_df['Node'].tolist()
-        clusters_list = list(cluster_dict.values())
+        clusters_list = list(set(cluster_dict.values()))
         clusters_list = [c for c in clusters_list if c not in node_members]
         clusters_df = pd.DataFrame(clusters_list, columns=['Node'])
         clusters_df['node_type'] = 'cluster'
@@ -138,12 +168,23 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
             clusters_df = clusters_df.merge(cluster_metadata, left_on='Node', right_on='Cluster')
             clusters_df.drop(columns=['Cluster'], inplace=True)
         ### combine cluster info with node info
-        nodes_df = pd.concat([nodes_df,clusters_df])
-    print(nodes_df)
+        #nodes_df = pd.concat([nodes_df,clusters_df])
+        nodes_df = nodes_df.merge(
+            cluster_metadata,
+            left_on='Node',
+            right_on='Cluster',
+            how='left',
+            suffixes=('', '_cluster')
+        )
+        for col in cluster_metadata.columns:
+            if col != 'Cluster' and f"{col}_cluster" in nodes_df.columns:
+                nodes_df[col] = nodes_df[f"{col}_cluster"].combine_first(nodes_df.get(col))
+        nodes_df.drop(columns=[c for c in nodes_df.columns if c.endswith('_cluster')] + ['Cluster'], inplace=True)
+
     ### Now save file
     try:
         ### saving as excel sheet
-        nodes_df.to_excel(nodes_file, sheet_name=nodes_label)
+        save_sheet(nodes_df, nodes_file, nodes_label)
     except:
         nodes_file = nodes_file.replace("_input.xlsx", "_node_metadata.csv")
         nodes_df.to_csv(nodes_file, index=False)
@@ -154,6 +195,25 @@ def collapse_or_mixed(series):
         return vals[0]
     else:
         return 'mixed'
+
+def save_sheet(df, file_name, sheet_name):
+    if os.path.exists(file_name):
+        # append
+        with pd.ExcelWriter(
+            file_name,
+            engine="openpyxl",
+            mode="a",
+            if_sheet_exists="replace"
+        ) as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+    else:
+        # create new file
+        with pd.ExcelWriter(
+            file_name,
+            engine="openpyxl",
+            mode="w"
+        ) as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
 
 def create_output_folder(poutput, pforce_output):
     """Create (and overwrite) a new output folder at location poutput
@@ -433,6 +493,26 @@ def cluster_size_viz(clusters, file_name):
     plt.savefig(file_name)
 
 
+def read_dissoc_freq(file_path):
+    if os.path.exists(file_path):
+        dissoc_freq = {}
+        with open(file_path, "r") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                # skip comments
+                if not row or row[0].startswith("#"):
+                    continue
+                # skip header
+                if row[0] == "Cluster1":
+                    continue
+                i = int(row[0])
+                j = int(row[1])
+                freq = float(row[2])
+                dissoc_freq[(i, j)] = freq
+        return dissoc_freq
+    else:
+        return {}
+
 def cluster_dissoc(dissoc_freq, global_freq, poutput):
     """
     Writes the average dissociation of MCL clusters to file
@@ -487,7 +567,7 @@ def assoc_genes_cytoscape(df, file_name):
     #df.to_csv(file_name, index=False)
     try:
         ### saving as excel sheet
-        df.to_excel(file_name, sheet_name='gene_gene_assoc')
+        save_sheet(df, file_name, 'gene_gene_assoc')
     except:
         file_name = file_name.replace("_input.xlsx", "_edges_gene_gene_assoc.csv")
         df.to_csv(file_name, index=False)
@@ -520,7 +600,7 @@ def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
     #df.to_csv(file_name, mode='a', header=False, index=False)
     try:
         ### saving as excel sheet
-        df.to_excel(file_name, sheet_name='gene_gene_dissoc')
+        save_sheet(df, file_name, 'gene_gene_dissoc')
     except:
         file_name = file_name.replace("_input.xlsx", "_edges_gene_gene_dissoc.csv")
         df.to_csv(file_name, index=False)
@@ -542,7 +622,7 @@ def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
     
     try:
         ### saving as excel sheet
-        df.to_excel(file_name, sheet_name='cluster_cluster_dissoc')
+        save_sheet(df, file_name, 'cluster_cluster_dissoc')
     except:
         file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_dissoc.csv")
         df.to_csv(file_name, index=False)
@@ -598,7 +678,7 @@ def clusters_cytoscape(cluster_dict, file_name):
     
     try:
         ### saving as excel sheet
-        df.to_excel(file_name, sheet_name='gene_cluster_member')
+        save_sheet(df, file_name, "gene_cluster_member")
     except:
         file_name = file_name.replace("_input.xlsx", "_edges_gene_cluster_member.csv")
         df.to_csv(file_name, index=False)
@@ -654,7 +734,8 @@ def clusters_assoc_cytoscape(assoc_freq, cluster_dict, poutput):
     file_name = f'{poutput}/cytoscape_input.xlsx'
     try:
         ### saving as excel sheet
-        df.to_excel(file_name, sheet_name='cluster_cluster_assoc')
+        with pd.ExcelWriter(file_name, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+            df.to_excel(writer, sheet_name="cluster_cluster_assoc", index=False)
     except:
         file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_assoc.csv")
         df.to_csv(file_name, index=False)

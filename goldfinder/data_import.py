@@ -191,7 +191,7 @@ def load_panx(panx_folder):
 
     return in_matrix.astype(int), locus
 
-
+'''older function, not used anymore in output'''
 def load_metadata(pmetadata, gene_names):
 
     # Read metadata
