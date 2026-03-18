@@ -123,7 +123,7 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
     
     if not append:
         # Make a node df if necessary
-        nodes_df = pd.DataFrame(genes_list, columns=['Node'])
+        nodes_df = pd.DataFrame(genes_list, columns=['id'])
         nodes_df['node_type'] = 'gene'
 
     ### add metadata columns
@@ -135,7 +135,7 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
         try:
             nodes_df = nodes_df.merge(
                 metadata,
-                left_on='Node',
+                left_on='id',
                 right_on='Gene',
                 how='left',
                 suffixes=('', '_meta')
@@ -153,10 +153,11 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
             print(e)
     #Now to add cluster info
     if len(cluster_dict) > 0:
-        node_members = nodes_df['Node'].tolist()
+        cluster_dict = {gene: f'cl_{cluster}' for gene, cluster in cluster_dict.items()}
+        node_members = nodes_df['id'].tolist()
         clusters_list = list(set(cluster_dict.values()))
         clusters_list = [c for c in clusters_list if c not in node_members]
-        clusters_df = pd.DataFrame(clusters_list, columns=['Node'])
+        clusters_df = pd.DataFrame(clusters_list, columns=['id'])
         clusters_df['node_type'] = 'cluster'
         ### try to add metadata
         if metadata is not None:
@@ -165,13 +166,13 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
                                 .groupby("Cluster")
                                 .agg({col: collapse_or_mixed for col in metadata.columns if col not in ['Gene', 'Cluster']})
                                 .reset_index())
-            clusters_df = clusters_df.merge(cluster_metadata, left_on='Node', right_on='Cluster')
+            clusters_df = clusters_df.merge(cluster_metadata, left_on='id', right_on='Cluster')
             clusters_df.drop(columns=['Cluster'], inplace=True)
         ### combine cluster info with node info
-        #nodes_df = pd.concat([nodes_df,clusters_df])
+        nodes_df = pd.concat([nodes_df,clusters_df])
         nodes_df = nodes_df.merge(
             cluster_metadata,
-            left_on='Node',
+            left_on='id',
             right_on='Cluster',
             how='left',
             suffixes=('', '_cluster')
@@ -180,7 +181,6 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
             if col != 'Cluster' and f"{col}_cluster" in nodes_df.columns:
                 nodes_df[col] = nodes_df[f"{col}_cluster"].combine_first(nodes_df.get(col))
         nodes_df.drop(columns=[c for c in nodes_df.columns if c.endswith('_cluster')] + ['Cluster'], inplace=True)
-
     ### Now save file
     try:
         ### saving as excel sheet
@@ -560,8 +560,8 @@ def assoc_genes_cytoscape(df, file_name):
     None.
     """
     print("Writing Gene Gene associations Edges for Cytoscape Visualization. Adjusted p-value - 0.5 is renamed to Force")
-    df.rename({'Gene_1': 'Node1', 'Gene_2': 'Node2', 'p-value adj': 'Force'}, axis=1, inplace=True)
-    #df.drop(df.columns.difference(['Node1', 'Node2', 'Force']), axis=1, inplace=True)
+    df.rename({'Gene_1': 'source', 'Gene_2': 'target', 'p-value adj': 'Force'}, axis=1, inplace=True)
+    #df.drop(df.columns.difference(['source', 'target', 'Force']), axis=1, inplace=True)
     df['Force'] = df['Force'] - 0.5
     df['pair_type'] = 'gene-gene-assoc'
     #df.to_csv(file_name, index=False)
@@ -593,8 +593,8 @@ def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
     None.
     """
     print("Writing Gene Gene disassociations Edges for Cytoscape Visualization. 0.5 - adjusted p-value is renamed to Force")
-    df.rename({'Gene_1': 'Node1', 'Gene_2': 'Node2', 'p-value adj': 'Force'}, axis=1, inplace=True)
-    #df.drop(df.columns.difference(['Node1', 'Node2', 'Force']), axis=1, inplace=True)
+    df.rename({'Gene_1': 'source', 'Gene_2': 'target', 'p-value adj': 'Force'}, axis=1, inplace=True)
+    #df.drop(df.columns.difference(['source', 'target', 'Force']), axis=1, inplace=True)
     df['Force'] = 0.5 - df['Force']
     df['pair_type'] = 'gene-gene-dissoc'
     #df.to_csv(file_name, mode='a', header=False, index=False)
@@ -607,14 +607,14 @@ def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
 
 
     print("Writing Cluster Cluster disassociations Edges for Cytoscape Visualization. Force is disassociation frequency")
-    data_dict = {'Node1':[], 'Node2':[], 'Force':[],'pair_type':[]}
+    data_dict = {'source':[], 'target':[], 'Force':[],'pair_type':[]}
     for (i, j) in dissoc_freq:
             if dissoc_freq[(i, j)] > 0:
-                data_dict['Node1'] = data_dict['Node1'] + [f'cl_{i}']
-                data_dict['Node2'] = data_dict['Node2'] + [f'cl_{j}']
+                data_dict['source'] = data_dict['source'] + [f'cl_{i}']
+                data_dict['target'] = data_dict['target'] + [f'cl_{j}']
                 data_dict['Force'] = data_dict['Force'] + [dissoc_freq[(i,j)]]
                 data_dict['pair_type'] = data_dict['pair_type'] + ['cluster-cluster-dissoc']
-    if len(data_dict['Node1']) == 0:
+    if len(data_dict['source']) == 0:
         print("Warning: no cluster-cluster disassociations detected.")
         return
     
@@ -664,13 +664,13 @@ def clusters_cytoscape(cluster_dict, file_name):
 
     print("Writing Cluster Edges for Cytoscape Visualization. Force is set to 5")
 
-    data_dict = {'Node1':[], 'Node2':[],'Force':[],'pair_type':[]}
+    data_dict = {'source':[], 'target':[],'Force':[],'pair_type':[]}
     for gene in cluster_dict:
-        data_dict['Node1'] = data_dict['Node1'] + [gene]
-        data_dict['Node2'] = data_dict['Node2'] + [f'cl_{cluster_dict[gene]}']
+        data_dict['source'] = data_dict['source'] + [gene]
+        data_dict['target'] = data_dict['target'] + [f'cl_{cluster_dict[gene]}']
         data_dict['Force'] = data_dict['Force'] + [5]
         data_dict['pair_type'] = data_dict['pair_type'] + ['gene-cluster-member']
-    if len(data_dict['Node1']) == 0:
+    if len(data_dict['source']) == 0:
         print("Warning: no gene-cluster memberships detected. Check files!")
         return
     
@@ -719,14 +719,14 @@ def clusters_assoc_cytoscape(assoc_freq, cluster_dict, poutput):
                 file.write(f'cl_{i},cl_{j},{assoc_freq[(i,j)] + 1},cluster-cluster-assoc\n')
     '''
 
-    data_dict = {'Node1':[], 'Node2':[], 'Force':[],'pair_type':[]}
+    data_dict = {'source':[], 'target':[], 'Force':[],'pair_type':[]}
     for (i, j) in assoc_freq:
             if assoc_freq[(i, j)] > 0:
-                data_dict['Node1'] = data_dict['Node1'] + [f'cl_{i}']
-                data_dict['Node2'] = data_dict['Node2'] + [f'cl_{j}']
+                data_dict['source'] = data_dict['source'] + [f'cl_{i}']
+                data_dict['target'] = data_dict['target'] + [f'cl_{j}']
                 data_dict['Force'] = data_dict['Force'] + [assoc_freq[(i,j)]]
                 data_dict['pair_type'] = data_dict['pair_type'] + ['cluster-cluster-assoc']
-    if len(data_dict['Node1']) == 0:
+    if len(data_dict['source']) == 0:
         print("Warning: no cluster-cluster associations detected.")
         return
     
