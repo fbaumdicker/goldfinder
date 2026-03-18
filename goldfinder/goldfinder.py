@@ -1,3 +1,4 @@
+from html import parser
 import checks
 import clustering
 import simulation
@@ -81,6 +82,21 @@ def argparser():
                         "needs to be >1")
     parser.add_argument("-n", "--no_clustering", action='store_true', help="Set this if no "
                         "clustering should be performed.")
+    parser.add_argument("-cl_dis_method", "--cluster_dissoc_method", choices=["standard", "gene_based", "both"],
+                        default="standard",
+                        help=(
+                        "Method used to calculate cluster dissociation (only applicable in dissociation mode). "
+                        "Standard method: fraction of significantly dissociated gene pairs between clusters. "
+                        "Gene-based method: proportion of genes in each cluster that are dissociated with at least a threshold fraction "
+                        "of genes in the other cluster (reduces bias from cluster size and highlights consistent gene-level patterns)."))
+    parser.add_argument("-disT", "--gene_dissoc_threshold", type=float, default=0.5,
+                        help=(
+                            "Gene-based method only. Minimum fraction (0–1) of genes in the opposite cluster "
+                            "a gene must be dissociated with to count as a hit (default: 0.5)."))
+    parser.add_argument("-hitT", "--cluster_dissoc_threshold", type=float, default=0.0,
+                        help=(
+                            "Gene-based method only. Minimum GeneForce (0–1) required to report a cluster–cluster "
+                            "dissociation (default: 0.0)."))
     
     # Visualization
     # TODO test this parameter with panaroo and panx input
@@ -181,13 +197,18 @@ def main():
                                         p.pvalue_correction, p.output, num_known_assoc, known_assoc)
             if p.coocurrence == 'both' and mode == 'dissociation' and not p.no_clustering:
                 print("Calculating Average Dissociation between Clusters")
-                dissoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj,
-                                                        p.file_type in ["tab", "matrix"])
+                if p.cluster_dissoc_method in ["standard", "both"]:
+                    dissoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj,
+                                                            p.file_type in ["tab", "matrix"])
 
-                # Write to file, along with global fraction of significantly dissociated gene pairs
-                num_significant = significant_score_indices[0].size
-                num_gene_pairs = input_scores.shape[0] * (input_scores.shape[0] - 1) / 2
-                output.cluster_dissoc(dissoc_freq, num_significant / num_gene_pairs, p.output)
+                    # Write to file, along with global fraction of significantly dissociated gene pairs
+                    num_significant = significant_score_indices[0].size
+                    num_gene_pairs = input_scores.shape[0] * (input_scores.shape[0] - 1) / 2
+                    output.cluster_dissoc(dissoc_freq, num_significant / num_gene_pairs, p.output)
+                if p.cluster_dissoc_method in ["gene_based", "both"]:
+                    output.gene_based_cluster_dissoc(cluster_dict, p_values_adj,
+                                                    p.file_type in ["tab", "matrix"], p.output, 
+                                                    p.cluster_dissoc_threshold, p.gene_dissoc_threshold)
 
                 #output.clusters_cytoscape(dissoc_freq, cluster_dict, p.output)
             else:
