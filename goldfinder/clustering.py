@@ -60,6 +60,8 @@ def dissociation_freq(cluster_dict, p_values_adj, simple_idx):
     # p_values_adj's index might contain additional information, separated by /
     id_to_index = {}
 
+    #### NOTE: here instead of simple_idx, we should consider transforming the p_valuses_adj 
+    #### in a common format
     if simple_idx:
         all_ids = p_values_adj.index
     else:

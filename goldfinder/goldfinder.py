@@ -200,15 +200,11 @@ def main():
                 if p.cluster_dissoc_method in ["standard", "both"]:
                     dissoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj,
                                                             p.file_type in ["tab", "matrix"])
-
                     # Write to file, along with global fraction of significantly dissociated gene pairs
                     num_significant = significant_score_indices[0].size
                     num_gene_pairs = input_scores.shape[0] * (input_scores.shape[0] - 1) / 2
                     output.cluster_dissoc(dissoc_freq, num_significant / num_gene_pairs, p.output)
-                if p.cluster_dissoc_method in ["gene_based", "both"]:
-                    output.gene_based_cluster_dissoc(cluster_dict, p_values_adj,
-                                                    p.file_type in ["tab", "matrix"], p.output, 
-                                                    p.cluster_dissoc_threshold, p.gene_dissoc_threshold)
+                
 
                 #output.clusters_cytoscape(dissoc_freq, cluster_dict, p.output)
             else:
@@ -225,7 +221,8 @@ def main():
             output.result_procedure(p_values_adj, p_values_unadj, significant_score_indices,
                                     cluster_dict, clusters, locus_dict, p.output, p.score, mode,
                                     p.file_type, perform_clustering,
-                                    known_assoc)
+                                    known_assoc, p.cluster_dissoc_method, 
+                                    p.cluster_dissoc_threshold, p.gene_dissoc_threshold)
             
 
             

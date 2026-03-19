@@ -9,200 +9,117 @@ import os
 import numpy as np
 import clustering
 import data_import
+from itertools import combinations
+
+def load_clusters(path):
+    gene_to_cluster = {}
+    current_cluster = None
+
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+            if line.startswith(">"):
+                # >cluster_id,size
+                current_cluster = int(line[1:].split(",")[0])
+            else:
+                gene = line.rstrip(",")
+                gene_to_cluster[gene] = current_cluster
+
+    return gene_to_cluster
 
 
-
-def gene_based_cluster_dissoc(cluster_dict, p_values_adj,simple_idx, output,
-                              hitT=0.0,
-                              disT=0.5):
+def gene_based_cluster_dissoc(disassoc_pairs_file, poutput,
+                                  cluster_dissoc_threshold=0.0, gene_dissoc_threshold=0.5):
     print("Calculating gene-based cluster dissociation")
-    ### distribution of gene_scores, for each gene and each pair of MCL clusters - too many possibilities to calculate
-    all_gene_scores = []
-    included_pairs = []
-    distribution_genescores_fig = os.path.join(output, f'dis_gene_score_distribution.png')
+    ### get only among MCL cluster dissociations and print how many there are
+    all_disassoc_pairs = np.loadtxt(disassoc_pairs_file, delimiter=',', usecols=[0,1,3], skiprows=1,
+                                        dtype={'names': ('Gene_1', 'Gene_2', 'p_adj'), 
+                                               'formats': ('U50', 'U50', 'f8')})
+    ### import cluster info
+    clusters_file = f'{poutput}/association_clusters.txt'
+    clusters = load_clusters(clusters_file)
+    ### filter diassoc pairs to only those between MCL clusters
+    mask = np.array([
+        clusters.get(g1) != clusters.get(g2)
+        for g1, g2 in zip(all_disassoc_pairs['Gene_1'], all_disassoc_pairs['Gene_2'])
+    ])
+    filtered = all_disassoc_pairs[mask]
+    ### compare size difference
+    size_diff = filtered['Gene_1'].size - filtered['Gene_2'].size
+    print(f"Filtered out within-MCL clusters disassociations: {size_diff}")
 
-    # Assume p_values_adj is your DataFrame
-    p_values_long = p_values_adj.stack().reset_index()
-    p_values_long.columns = ['source', 'target', 'p_adj']
-    p_values_long = p_values_long[p_values_long['source'] != p_values_long['target']]
-    p_values_long = p_values_long[p_values_long['source'] < p_values_long['target']]  # keeps one direction
-    p_values_long['clustersource'] = p_values_long['source'].map(cluster_dict)
-    p_values_long['clustertarget'] = p_values_long['target'].map(cluster_dict)
-    p_values_long['withinMCL'] = p_values_long['clustersource'] == p_values_long['clustertarget']
-    outside_MCL_gene_disassoc_edges_df = p_values_long[p_values_long['withinMCL'] == False].copy()
-
-    # Reverse cluster_dict to cluster_ID -> [List of gene_names]
-    rev_dict = {}
-    for gene_name in cluster_dict:
-        rev_dict[cluster_dict[gene_name]] = rev_dict.get(cluster_dict[gene_name], []) + [gene_name]
-    cluster_list = list(rev_dict.keys())
-
-    ### check every MCL cluster vs every other MCL cluster
-    for query_cluster in cluster_list:
-        query_node_num = len(rev_dict[query_cluster])
-        query_gene_list = rev_dict[query_cluster]
-        for target_cluster in cluster_list:
-            ### skip if same cluster or already seen pair of clusters
-            if query_cluster == target_cluster or set([query_cluster, target_cluster]) in included_pairs:
-                continue
-            target_node_num = len(rev_dict[target_cluster])
-            target_gene_list = rev_dict[target_cluster]
-            ### now check if there are disassociations between the two MCL clusters
-            betweenMCL_dis_edges_df = outside_MCL_gene_disassoc_edges_df[((outside_MCL_gene_disassoc_edges_df['clustersource'] == query_cluster) & (outside_MCL_gene_disassoc_edges_df['clustertarget'] == target_cluster)) | ((outside_MCL_gene_disassoc_edges_df['clustersource'] == target_cluster) & (outside_MCL_gene_disassoc_edges_df['clustertarget'] == query_cluster))]
-            total_nodes = query_node_num + target_node_num
-            ### there may be none, so skip if so (speeds up the process if we don't count zeroes)
-            if not len(betweenMCL_dis_edges_df):
-                #all_gene_scores = all_gene_scores + [0] * (total_nodes)
-                continue
-            ### query hits
-            for gene in query_gene_list:
-                thisgeneedges_num = len(betweenMCL_dis_edges_df[(betweenMCL_dis_edges_df['source'] == gene) | (betweenMCL_dis_edges_df['target'] == gene)])
-                ### what percentage out of the max edges did it have?
-                thisgenescore = thisgeneedges_num / target_node_num
-                all_gene_scores.append(thisgenescore)
-            ### target hits
-            for gene in target_gene_list:
-                thisgeneedges_num = len(betweenMCL_dis_edges_df[(betweenMCL_dis_edges_df['source'] == gene) | (betweenMCL_dis_edges_df['target'] == gene)])
-                ### what percentage out of the max edges did it have?
-                thisgenescore = thisgeneedges_num / query_node_num
-                all_gene_scores.append(thisgenescore)
-    ### now visualize the distribution
+    ### first plot the distribution of gene-based scores, to help choose thresholds
+    distribution_genescores_fig = os.path.join(poutput, f'dis_gene_score_distribution.png')
     fig, ax = plt.subplots(figsize=(10, 6))
-    all_gene_scores_np = np.array(all_gene_scores)
-    plt.hist(all_gene_scores_np, bins=20)
+    plt.hist(filtered['p_adj'], bins=20)  # <-- use the score field
     plt.yscale('log')
     plt.title('Distribution of between MCL clusters gene-gene dissociation scores')
     fig.savefig(distribution_genescores_fig)
 
     ### now calculate gene-based metric
-    outfile = f'{output}/Dissociation_between_clusters_genebased_{disT}_{hitT}.csv'
+    outfile = f'{poutput}/Dissociation_between_clusters_genebased_{cluster_dissoc_threshold}_{gene_dissoc_threshold}.csv'
+    # cluster -> set of genes
+    cluster_to_genes = {}
+    for gene, cl in clusters.items():
+        cluster_to_genes.setdefault(cl, set()).add(gene)
 
-    
+    # gene -> set of genes it is paired with (from filtered)
+    gene_to_partners = {}
+    for g1, g2 in zip(filtered['Gene_1'], filtered['Gene_2']):
+        gene_to_partners.setdefault(g1, set()).add(g2)
+        gene_to_partners.setdefault(g2, set()).add(g1)
 
-def gene_based_cluster_dissoc_chatgpt(cluster_dict, p_values_adj,
-                              simple_idx, output,
-                              cluster_dissoc_threshold=0.0,
-                              gene_dissoc_threshold=0.5):
-    """
-    Gene-based cluster dissociation using binary dissociation (edge presence only).
-
-    Each gene is scored by the fraction of genes in the opposite cluster it is 
-    dissociated with. Genes exceeding `gene_dissoc_threshold` count as hits. 
-    Cluster-level score (GeneForce) is the fraction of hits across both clusters.
-
-    Parameters
-    ----------
-    cluster_dict : dict
-        cluster_id -> list of gene names
-    p_values_adj : pd.DataFrame
-        DataFrame of all significant gene-gene dissociations (binary presence implied by non-NaN)
-    simple_idx : bool
-        Whether the index of p_values_adj is simple gene names or contains extra info
-    output : str
-        Folder to save the output CSV
-    cluster_dissoc_threshold : float
-        Minimum GeneForce to report cluster–cluster dissociation
-    gene_dissoc_threshold : float
-        Minimum fraction of opposite-cluster genes a gene must be dissociated with to count as a hit
-    """
-
-    import pandas as pd
-    from collections import defaultdict
-
-    # --- Check input ---
-    if not hasattr(p_values_adj, "index"):
-        raise ValueError("p_values_adj must be a DataFrame with gene IDs as the index")
-
-    # --- Map indices to gene names ---
-    if simple_idx:
-        idx_to_gene = list(p_values_adj.index)
-    else:
-        idx_to_gene = [idx.split('/')[0] for idx in p_values_adj.index]
-
-    # --- Build dissociation map: gene -> set of genes it is dissociated with ---
-    dissoc_map = defaultdict(set)
-    for gene1 in idx_to_gene:
-        # non-NaN entries indicate dissociation
-        dissociated_genes = p_values_adj.loc[gene1].dropna().index
-        dissoc_map[gene1].update(dissociated_genes)
-
-    # --- Precompute cluster gene sets ---
-    cluster_data = {}
-    for cluster, genes in cluster_dict.items():
-        filtered = [g for g in genes if g in dissoc_map]
-        cluster_data[cluster] = {
-            "genes": filtered,
-            "set": set(filtered),
-            "size": len(filtered)
-        }
-
-    # --- Calculate gene-based cluster dissociation ---
+    ### now go through all combinations
     results = []
-    cluster_list = list(cluster_dict.keys())
-    for i, c1 in enumerate(cluster_list):
-        data1 = cluster_data[c1]
-        genes1 = data1["genes"]
-        set1 = data1["set"]
-        n1 = data1["size"]
-        if n1 == 0:
-            continue
+    for c1, c2 in combinations(cluster_to_genes.keys(), 2):
+        genes1 = cluster_to_genes[c1]
+        genes2 = cluster_to_genes[c2]
 
-        for j in range(i + 1, len(cluster_list)):
-            c2 = cluster_list[j]
-            data2 = cluster_data[c2]
-            genes2 = data2["genes"]
-            set2 = data2["set"]
-            n2 = data2["size"]
-            if n2 == 0:
-                continue
+        hits1 = 0
+        for g in genes1:
+            partners = gene_to_partners.get(g, set())
+            count = len(partners & genes2)
 
-            min_hits_q = gene_dissoc_threshold * n2
-            min_hits_t = gene_dissoc_threshold * n1
+            score = count / len(genes2) if genes2 else 0
+            if score > gene_dissoc_threshold:
+                hits1 += 1
 
-            # --- Query hits ---
-            query_hits = 0
-            for g in genes1:
-                partners = dissoc_map[g]
-                if len(partners) < n2:
-                    hits = sum(1 for x in partners if x in set2)
-                else:
-                    hits = sum(1 for x in set2 if x in partners)
-                if hits >= min_hits_q:
-                    query_hits += 1
+        hits2 = 0
+        for g in genes2:
+            partners = gene_to_partners.get(g, set())
+            count = len(partners & genes1)
 
-            # --- Target hits ---
-            target_hits = 0
-            for g in genes2:
-                partners = dissoc_map[g]
-                if len(partners) < n1:
-                    hits = sum(1 for x in partners if x in set1)
-                else:
-                    hits = sum(1 for x in set1 if x in partners)
-                if hits >= min_hits_t:
-                    target_hits += 1
+            score = count / len(genes1) if genes1 else 0
+            if score > gene_dissoc_threshold:
+                hits2 += 1
 
-            total_nodes = n1 + n2
-            total_score = (query_hits + target_hits) / total_nodes
+        cluster_score = (hits1 + hits2) / (len(genes1) + len(genes2))
 
-            if total_score > cluster_dissoc_threshold:
-                results.append((c1, c2, total_score))
+        if cluster_score > cluster_dissoc_threshold:
+            results.append((c1, c2, cluster_score))
 
-    # --- Write results ---
-    result_df = pd.DataFrame(results, columns=["Cluster1", "Cluster2", "GeneForce"])
-    outfile = f'{output}/Dissociation_between_clusters_genebased.csv'
-    with open(outfile, 'w') as file:
-        file.write(f'# Only contains pairs of clusters with GeneForce > {cluster_dissoc_threshold}\n')
-        file.write('Cluster1,Cluster2,GeneForce\n')
+    ### save results
+    with open(outfile, "w") as f:
+        f.write(f"# Contains pairs of clusters with GeneForce > {cluster_dissoc_threshold} and gene dissociation score > {gene_dissoc_threshold}\n")
+        f.write("Cluster1,Cluster2,GeneForce\n")
         for c1, c2, score in results:
-            file.write(f'{c1},{c2},{score}\n')
+            f.write(f"{c1},{c2},{score}\n")
+    ### plot distribution of GeneForce values
+    distribution_geneforce_fig = os.path.join(poutput, f'dis_cl_cl_geneforce_distribution.png')
+    fig, ax = plt.subplots(figsize=(10, 6))
+    plt.hist([score for _, _, score in results], bins=20)  # <-- use the score field
+    plt.title(f'Distribution of between MCL clusters GeneForce scores\n(GeneForce T: {cluster_dissoc_threshold} and gene dissociation score T: {gene_dissoc_threshold} are included)')
+    fig.savefig(distribution_geneforce_fig)
 
-    print(f"Saved: {outfile}")
-    return result_df
 
 
 def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cluster_dict,
                      clusters, locus_dict, poutput, pscore, mode, pfile_type, perform_clustering,
-                     known_assoc):
+                     known_assoc, cluster_dissoc_method='standard', cluster_dissoc_threshold=0.0,
+                     gene_dissoc_threshold=0.5):
 
     if clusters:
         print("Writing association clusters")
@@ -215,11 +132,15 @@ def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cl
     else:
         cluster_file = None
 
-    print("Writing significant gene pairs to output")
+    print("\nWriting significant gene pairs to output")
     gene_pair_file = f'{poutput}/{pscore}_{mode}_significant_pairs.txt'
     write_significant_gp(p_values_adj, p_values_unadj, significant_score_indices, cluster_dict,
                          locus_dict, gene_pair_file, pfile_type, perform_clustering, metadata=None,
                          known_assoc=known_assoc)
+    if mode == 'dissociation' and cluster_dissoc_method in ["gene_based", "both"]:
+        gene_based_cluster_dissoc(gene_pair_file, poutput,
+                                  cluster_dissoc_threshold, gene_dissoc_threshold)
+
 
     print("Sorting output according to p-value")
     df = pd.read_csv(gene_pair_file, low_memory=False)
@@ -283,7 +204,7 @@ def create_cytoscape_files(cytoscape_file, mode, gene_pair_file, poutput, dissoc
         print("Writing Associated Gene Pairs for Cytoscape Visualization")
         assoc_genes_cytoscape(df, cytoscape_file)
 
-        print("NOTE: consider changing the name of the function below!!!!!!!")
+        ### NOTE: consider changing the name of the function below!!!!!!!
         # Calculate fraction of associated genes between clusters
         assoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj,
                                                   pfile_type in ["matrix", "tab"])
@@ -814,11 +735,37 @@ def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
     
     try:
         ### saving as excel sheet
-        save_sheet(df, file_name, 'cluster_cluster_dissoc')
+        save_sheet(df, file_name, 'cluster_cluster_dissoc_standard')
     except:
         file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_dissoc.csv")
         df.to_csv(file_name, index=False)
 
+    ### if gene-based cluster dissociation was performed, also write these edges to the cytoscape file
+    outputdir = os.path.dirname(file_name)
+    try:
+        gene_based_cluster_dissoc_file = os.path.join(outputdir, [f for f in os.listdir(outputdir) if f.startswith("Dissociation_between_clusters_genebased")][0])
+    except IndexError:
+        print("Warning: no gene-based cluster dissociation file found.")
+        return
+    # import gene-based cluster dissociation results
+    df = pd.read_csv(gene_based_cluster_dissoc_file, comment="#")
+    # rename + transform to match Cytoscape format
+    df = df.rename(columns={
+        'Cluster1': 'source',
+        'Cluster2': 'target',
+        'GeneForce': 'Force'    ### necessary to merge with other tables for cytoscape
+    })
+
+    df['source'] = 'cl_' + df['source'].astype(str)
+    df['target'] = 'cl_' + df['target'].astype(str)
+    df['pair_type'] = 'cluster-cluster-dissoc'
+    try:
+        ### saving as excel sheet
+        save_sheet(df, file_name, 'cluster_cluster_dissoc_genebased')
+    except:
+        file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_dissoc_genebased.csv")
+        df.to_csv(file_name, index=False)
+    
 
 def clusters_cytoscape(cluster_dict, file_name):
     """

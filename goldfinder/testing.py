@@ -52,8 +52,6 @@ def testing_procedure(null_dist_scores, input_scores, mode, palpha, ppvalue_corr
     if significant_indices[0].size == 0:
         exit("No significant gene pairs were found.")
 
-    print(p_values_adj)
-
     return significant_indices, p_values_unadj, p_values_adj, sig_lvl, known_assoc
 
 
