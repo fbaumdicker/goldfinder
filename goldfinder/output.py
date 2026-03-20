@@ -761,9 +761,9 @@ def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
     df['pair_type'] = 'cluster-cluster-dissoc'
     try:
         ### saving as excel sheet
-        save_sheet(df, file_name, 'cluster_cluster_dissoc_genebased')
+        save_sheet(df, file_name, 'cluster_cluster_dissoc_genebase')
     except:
-        file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_dissoc_genebased.csv")
+        file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_dissoc_genebase.csv")
         df.to_csv(file_name, index=False)
     
 
