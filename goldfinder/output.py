@@ -229,10 +229,14 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
     except:
         print("Generating node table")
         append = False
+    '''
     if len(cluster_dict) > 0:
         genes_list = list(cluster_dict.keys())
     else:
         genes_list = list(set(df['Gene_1'].unique().tolist() + df['Gene_2'].unique().tolist()))
+    '''
+    # always include all genes from df
+    genes_list = list(set(df['Gene_1'].unique().tolist() + df['Gene_2'].unique().tolist()))
     
     if not append:
         # Make a node df if necessary
@@ -283,17 +287,18 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
             clusters_df.drop(columns=['Cluster'], inplace=True)
         ### combine cluster info with node info
         nodes_df = pd.concat([nodes_df,clusters_df])
-        nodes_df = nodes_df.merge(
-            cluster_metadata,
-            left_on='id',
-            right_on='Cluster',
-            how='left',
-            suffixes=('', '_cluster')
-        )
-        for col in cluster_metadata.columns:
-            if col != 'Cluster' and f"{col}_cluster" in nodes_df.columns:
-                nodes_df[col] = nodes_df[f"{col}_cluster"].combine_first(nodes_df.get(col))
-        nodes_df.drop(columns=[c for c in nodes_df.columns if c.endswith('_cluster')] + ['Cluster'], inplace=True)
+        if metadata is not None:
+            nodes_df = nodes_df.merge(
+                cluster_metadata,
+                left_on='id',
+                right_on='Cluster',
+                how='left',
+                suffixes=('', '_cluster')
+            )
+            for col in cluster_metadata.columns:
+                if col != 'Cluster' and f"{col}_cluster" in nodes_df.columns:
+                    nodes_df[col] = nodes_df[f"{col}_cluster"].combine_first(nodes_df.get(col))
+            nodes_df.drop(columns=[c for c in nodes_df.columns if c.endswith('_cluster')] + ['Cluster'], inplace=True)
     ### Now save file
     try:
         ### saving as excel sheet
@@ -756,8 +761,11 @@ def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
         'GeneForce': 'Force'    ### necessary to merge with other tables for cytoscape
     })
 
-    df['source'] = 'cl_' + df['source'].astype(str)
-    df['target'] = 'cl_' + df['target'].astype(str)
+    df['source'] = df['source'].astype(str)
+    df['target'] = df['target'].astype(str)
+    ### fix cluster label if necessary
+    df['source'] = df['source'].where(df['source'].str.startswith('cl_'), 'cl_' + df['source'])
+    df['target'] = df['target'].where(df['target'].str.startswith('cl_'), 'cl_' + df['target'])
     df['pair_type'] = 'cluster-cluster-dissoc'
     try:
         ### saving as excel sheet
