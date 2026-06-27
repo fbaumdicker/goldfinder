@@ -48,7 +48,7 @@ def gene_based_cluster_dissoc(disassoc_pairs_file, poutput,
     ])
     filtered = all_disassoc_pairs[mask]
     ### compare size difference
-    size_diff = filtered['Gene_1'].size - filtered['Gene_2'].size
+    size_diff = len(all_disassoc_pairs) - len(filtered)
     print(f"Filtered out within-MCL clusters disassociations: {size_diff}")
 
     ### first plot the distribution of gene-based scores, to help choose thresholds
@@ -119,7 +119,7 @@ def gene_based_cluster_dissoc(disassoc_pairs_file, poutput,
 def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cluster_dict,
                      clusters, locus_dict, poutput, pscore, mode, pfile_type, perform_clustering,
                      known_assoc, cluster_dissoc_method='standard', cluster_dissoc_threshold=0.0,
-                     gene_dissoc_threshold=0.5):
+                     gene_dissoc_threshold=0.5, metadata=None):
 
     if clusters:
         print("Writing association clusters")
@@ -133,14 +133,13 @@ def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cl
         cluster_file = None
 
     print("\nWriting significant gene pairs to output")
-    gene_pair_file = f'{poutput}/{pscore}_{mode}_significant_pairs.txt'
+    gene_pair_file = f'{poutput}/{pscore}_{mode}_significant_pairs.csv'
     write_significant_gp(p_values_adj, p_values_unadj, significant_score_indices, cluster_dict,
-                         locus_dict, gene_pair_file, pfile_type, perform_clustering, metadata=None,
-                         known_assoc=known_assoc)
+                         locus_dict, gene_pair_file, pfile_type, perform_clustering,
+                         metadata=metadata, known_assoc=known_assoc)
     if mode == 'dissociation' and cluster_dissoc_method in ["gene_based", "both"]:
         gene_based_cluster_dissoc(gene_pair_file, poutput,
                                   cluster_dissoc_threshold, gene_dissoc_threshold)
-
 
     print("Sorting output according to p-value")
     df = pd.read_csv(gene_pair_file, low_memory=False)

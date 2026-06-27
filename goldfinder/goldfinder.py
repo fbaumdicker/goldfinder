@@ -251,8 +251,9 @@ def main():
             output.result_procedure(p_values_adj, p_values_unadj, significant_score_indices,
                                     cluster_dict, clusters, locus_dict, p.output, p.score, mode,
                                     p.file_type, perform_clustering,
-                                    known_assoc, p.cluster_dissoc_method, 
-                                    p.cluster_dissoc_threshold, p.gene_dissoc_threshold)
+                                    known_assoc, p.cluster_dissoc_method,
+                                    p.cluster_dissoc_threshold, p.gene_dissoc_threshold,
+                                    metadata=metadata)
             
 
             
@@ -260,7 +261,7 @@ def main():
         print("Preparing visualization files for Cytoscape")
         for mode in modes:
             cytoscape_file = f'{p.output}/cytoscape_input.xlsx'
-            gene_pair_file = f'{p.output}/{p.score}_{mode}_significant_pairs.txt'
+            gene_pair_file = f'{p.output}/{p.score}_{mode}_significant_pairs.csv'
             if p.no_clustering or mode == "dissociation":
                 cluster_file = None
             else:
