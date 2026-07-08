@@ -1,15 +1,125 @@
+from csv import writer
+import csv
 import skbio
 from io import StringIO
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+import numpy as np
 import clustering
+import data_import
+from itertools import combinations
+
+def load_clusters(path):
+    gene_to_cluster = {}
+    current_cluster = None
+
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+            if line.startswith(">"):
+                # >cluster_id,size
+                current_cluster = int(line[1:].split(",")[0])
+            else:
+                gene = line.rstrip(",")
+                gene_to_cluster[gene] = current_cluster
+
+    return gene_to_cluster
+
+
+def gene_based_cluster_dissoc(disassoc_pairs_file, poutput,
+                                  cluster_dissoc_threshold=0.0, gene_dissoc_threshold=0.5):
+    print("Calculating gene-based cluster dissociation")
+    ### get only among MCL cluster dissociations and print how many there are
+    all_disassoc_pairs = np.loadtxt(disassoc_pairs_file, delimiter=',', usecols=[0,1,3], skiprows=1,
+                                        dtype={'names': ('Gene_1', 'Gene_2', 'p_adj'), 
+                                               'formats': ('U50', 'U50', 'f8')})
+    ### import cluster info
+    clusters_file = f'{poutput}/association_clusters.txt'
+    clusters = load_clusters(clusters_file)
+    ### filter diassoc pairs to only those between MCL clusters
+    mask = np.array([
+        clusters.get(g1) != clusters.get(g2)
+        for g1, g2 in zip(all_disassoc_pairs['Gene_1'], all_disassoc_pairs['Gene_2'])
+    ])
+    filtered = all_disassoc_pairs[mask]
+    ### compare size difference
+    size_diff = len(all_disassoc_pairs) - len(filtered)
+    print(f"Filtered out within-MCL clusters disassociations: {size_diff}")
+
+    ### first plot the distribution of gene-based scores, to help choose thresholds
+    distribution_genescores_fig = os.path.join(poutput, f'dis_gene_score_distribution.png')
+    fig, ax = plt.subplots(figsize=(10, 6))
+    plt.hist(filtered['p_adj'], bins=20)  # <-- use the score field
+    plt.yscale('log')
+    plt.title('Distribution of between MCL clusters gene-gene dissociation scores')
+    fig.savefig(distribution_genescores_fig)
+
+    ### now calculate gene-based metric
+    outfile = f'{poutput}/Dissociation_between_clusters_genebased_{cluster_dissoc_threshold}_{gene_dissoc_threshold}.csv'
+    # cluster -> set of genes
+    cluster_to_genes = {}
+    for gene, cl in clusters.items():
+        cluster_to_genes.setdefault(cl, set()).add(gene)
+
+    # gene -> set of genes it is paired with (from filtered)
+    gene_to_partners = {}
+    for g1, g2 in zip(filtered['Gene_1'], filtered['Gene_2']):
+        gene_to_partners.setdefault(g1, set()).add(g2)
+        gene_to_partners.setdefault(g2, set()).add(g1)
+
+    ### now go through all combinations
+    results = []
+    for c1, c2 in combinations(cluster_to_genes.keys(), 2):
+        genes1 = cluster_to_genes[c1]
+        genes2 = cluster_to_genes[c2]
+
+        hits1 = 0
+        for g in genes1:
+            partners = gene_to_partners.get(g, set())
+            count = len(partners & genes2)
+
+            score = count / len(genes2) if genes2 else 0
+            if score > gene_dissoc_threshold:
+                hits1 += 1
+
+        hits2 = 0
+        for g in genes2:
+            partners = gene_to_partners.get(g, set())
+            count = len(partners & genes1)
+
+            score = count / len(genes1) if genes1 else 0
+            if score > gene_dissoc_threshold:
+                hits2 += 1
+
+        cluster_score = (hits1 + hits2) / (len(genes1) + len(genes2))
+
+        if cluster_score > cluster_dissoc_threshold:
+            results.append((c1, c2, cluster_score))
+
+    ### save results
+    with open(outfile, "w") as f:
+        f.write(f"# Contains pairs of clusters with GeneForce > {cluster_dissoc_threshold} and gene dissociation score > {gene_dissoc_threshold}\n")
+        f.write("Cluster1,Cluster2,GeneForce\n")
+        for c1, c2, score in results:
+            f.write(f"{c1},{c2},{score}\n")
+    ### plot distribution of GeneForce values
+    distribution_geneforce_fig = os.path.join(poutput, f'dis_cl_cl_geneforce_distribution.png')
+    fig, ax = plt.subplots(figsize=(10, 6))
+    plt.hist([score for _, _, score in results], bins=20)  # <-- use the score field
+    plt.title(f'Distribution of between MCL clusters GeneForce scores\n(GeneForce T: {cluster_dissoc_threshold} and gene dissociation score T: {gene_dissoc_threshold} are included)')
+    fig.savefig(distribution_geneforce_fig)
+
 
 
 def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cluster_dict,
                      clusters, locus_dict, poutput, pscore, mode, pfile_type, perform_clustering,
-                     metadata, known_assoc, write_cytoscape):
+                     known_assoc, cluster_dissoc_method='standard', cluster_dissoc_threshold=0.0,
+                     gene_dissoc_threshold=0.5, metadata=None):
 
     if clusters:
         print("Writing association clusters")
@@ -19,22 +129,81 @@ def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cl
         print("Preparing cluster size graphic")
         hist_file = f'{poutput}/{mode}_cluster_sizes.png'
         cluster_size_viz(clusters, hist_file)
+    else:
+        cluster_file = None
 
-    print("Writing significant gene pairs to output")
+    print("\nWriting significant gene pairs to output")
     gene_pair_file = f'{poutput}/{pscore}_{mode}_significant_pairs.csv'
     write_significant_gp(p_values_adj, p_values_unadj, significant_score_indices, cluster_dict,
-                         locus_dict, gene_pair_file, pfile_type, perform_clustering, metadata,
-                         known_assoc)
+                         locus_dict, gene_pair_file, pfile_type, perform_clustering,
+                         metadata=metadata, known_assoc=known_assoc)
+    if mode == 'dissociation' and cluster_dissoc_method in ["gene_based", "both"]:
+        gene_based_cluster_dissoc(gene_pair_file, poutput,
+                                  cluster_dissoc_threshold, gene_dissoc_threshold)
 
     print("Sorting output according to p-value")
     df = pd.read_csv(gene_pair_file, low_memory=False)
     sort_output(df, gene_pair_file)
 
-    cytoscape_file = f'{poutput}/cytoscape_input.csv'
-    if write_cytoscape and mode == 'association':
+    '''
+    cytoscape_file = f'{poutput}/cytoscape_input.xlsx'
+    create_cytoscape_files(cytoscape_file, mode, gene_pair_file, poutput, dissoc_freq, cluster_dict={},
+                           cluster_file=cluster_file, p_values_adj=p_values_adj, pfile_type=pfile_type,
+                           metadata=metadata)
+    '''
+
+'''function to generate all files required by cytoscape for network visualization'''
+def create_cytoscape_files(cytoscape_file, mode, gene_pair_file, poutput, dissoc_freq_file, cluster_dict = {}, cluster_file=None,
+                           p_values_adj = None, pfile_type = "matrix", metadata_file=None, cl_dissoc_method=""):
+    '''
+    cluster_dict: gene to cluster dictionary. if the dictionary is empty but the is a file, 
+        the dictionary will be generated from the file.
+    cluster_file: file of gene - cluster membership. Not necessary if a cluster_dict is provided
+    cl_dissoc_method: method used to calculate cluster dissociation. Choices are 
+    '''
+
+    print("Creating files for cytoscape")
+
+    dissoc_freq = read_dissoc_freq(dissoc_freq_file)
+
+    if len(cluster_dict) == 0 and cluster_file is not None:
+        with open(cluster_file, 'r') as infile:
+            for line in infile:
+                if line.startswith(">"):
+                    current_cluster = int(line.split(",")[0][1:])
+                else:
+                    gene = line.rstrip().rstrip(",")
+                    cluster_dict[gene] = current_cluster
+    else:
+        print("Warning: cluster membership was not specified.")
+        print(cluster_dict, cluster_file)
+
+    df = pd.read_csv(gene_pair_file, low_memory=False)
+
+    ###read metadata
+    if metadata_file is not None:
+        metadata = pd.read_csv(metadata_file, sep='\t', index_col=0, header=0, dtype=str)
+    else:
+        metadata = None
+
+    write_node_metadata(poutput, cluster_dict, df, metadata)
+
+    if p_values_adj is None:
+        # try to get them from the file - only significant ones will be included!!!!
+        if 'p-value adj' in df.columns:
+            p_values_adj = df.pivot(index='Gene_1', columns='Gene_2', values='p-value adj')
+        else:
+            print("Warning: could not find adjusted p-values for gene pairs. Force of association/dissociation will not be calculated.")
+            p_values_adj = None
+
+    clusterfile_name = f'{poutput}/cytoscape_input.xlsx'
+    clusters_cytoscape(cluster_dict, clusterfile_name)
+
+    if mode == 'association':
         print("Writing Associated Gene Pairs for Cytoscape Visualization")
         assoc_genes_cytoscape(df, cytoscape_file)
 
+        ### NOTE: consider changing the name of the function below!!!!!!!
         # Calculate fraction of associated genes between clusters
         assoc_freq = clustering.dissociation_freq(cluster_dict, p_values_adj,
                                                   pfile_type in ["matrix", "tab"])
@@ -42,10 +211,126 @@ def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cl
         # Also write fraction of associated genes between clusters to the cytoscape file
         clusters_assoc_cytoscape(assoc_freq, cluster_dict, poutput)
 
-    elif write_cytoscape and mode == 'dissociation':
+    elif mode == 'dissociation':
         print("Writing Dissociated Gene Pairs for Cytoscape Visualization")
-        dissoc_genes_cytoscape(df, cytoscape_file)
+        dissoc_genes_cytoscape(df, cytoscape_file, dissoc_freq)
 
+def write_node_metadata(poutput, cluster_dict, df, metadata):
+    ### Create nodes table based on genes with significant relationships
+    nodes_file =  f'{poutput}/cytoscape_input.xlsx'
+    nodes_label = 'nodes_metadata'
+    append = True
+
+    try:
+        ### try to get existing nodes if possible
+        nodes_df = pd.read_excel(nodes_file, sheet_name=nodes_label)
+    ### or else generate from scratch
+    except:
+        print("Generating node table")
+        append = False
+    '''
+    if len(cluster_dict) > 0:
+        genes_list = list(cluster_dict.keys())
+    else:
+        genes_list = list(set(df['Gene_1'].unique().tolist() + df['Gene_2'].unique().tolist()))
+    '''
+    # always include all genes from df
+    genes_list = list(set(df['Gene_1'].unique().tolist() + df['Gene_2'].unique().tolist()))
+    
+    if not append:
+        # Make a node df if necessary
+        nodes_df = pd.DataFrame(genes_list, columns=['id'])
+        nodes_df['node_type'] = 'gene'
+
+    ### add metadata columns
+    if metadata is not None:
+        print("Adding metadata to node table")
+        metadata.reset_index(inplace=True)
+        if 'index' in metadata.columns:
+            metadata.drop(columns=['index'], inplace=True)
+        try:
+            nodes_df = nodes_df.merge(
+                metadata,
+                left_on='id',
+                right_on='Gene',
+                how='left',
+                suffixes=('', '_meta')
+            )
+
+            # overwrite existing columns only where metadata exists
+            for col in metadata.columns:
+                if col != 'Gene' and f"{col}_meta" in nodes_df.columns:
+                    nodes_df[col] = nodes_df[f"{col}_meta"].combine_first(nodes_df.get(col))
+
+            nodes_df.drop(columns=[c for c in nodes_df.columns if c.endswith('_meta')] + ['Gene'], inplace=True)
+        except Exception as e:
+            print("Warning: could not include metadata in node table. "
+                    "Is there a Gene column? Check the files!")
+            print(e)
+    #Now to add cluster info
+    if len(cluster_dict) > 0:
+        cluster_dict = {gene: f'cl_{cluster}' for gene, cluster in cluster_dict.items()}
+        node_members = nodes_df['id'].tolist()
+        clusters_list = list(set(cluster_dict.values()))
+        clusters_list = [c for c in clusters_list if c not in node_members]
+        clusters_df = pd.DataFrame(clusters_list, columns=['id'])
+        clusters_df['node_type'] = 'cluster'
+        ### try to add metadata
+        if metadata is not None:
+            metadata['Cluster'] = metadata['Gene'].map(cluster_dict)
+            cluster_metadata = (metadata
+                                .groupby("Cluster")
+                                .agg({col: collapse_or_mixed for col in metadata.columns if col not in ['Gene', 'Cluster']})
+                                .reset_index())
+            clusters_df = clusters_df.merge(cluster_metadata, left_on='id', right_on='Cluster')
+            clusters_df.drop(columns=['Cluster'], inplace=True)
+        ### combine cluster info with node info
+        nodes_df = pd.concat([nodes_df,clusters_df])
+        if metadata is not None:
+            nodes_df = nodes_df.merge(
+                cluster_metadata,
+                left_on='id',
+                right_on='Cluster',
+                how='left',
+                suffixes=('', '_cluster')
+            )
+            for col in cluster_metadata.columns:
+                if col != 'Cluster' and f"{col}_cluster" in nodes_df.columns:
+                    nodes_df[col] = nodes_df[f"{col}_cluster"].combine_first(nodes_df.get(col))
+            nodes_df.drop(columns=[c for c in nodes_df.columns if c.endswith('_cluster')] + ['Cluster'], inplace=True)
+    ### Now save file
+    try:
+        ### saving as excel sheet
+        save_sheet(nodes_df, nodes_file, nodes_label)
+    except:
+        nodes_file = nodes_file.replace("_input.xlsx", "_node_metadata.csv")
+        nodes_df.to_csv(nodes_file, index=False)
+
+def collapse_or_mixed(series):
+    vals = series.dropna().unique()
+    if len(vals) == 1:
+        return vals[0]
+    else:
+        return 'mixed'
+
+def save_sheet(df, file_name, sheet_name):
+    if os.path.exists(file_name):
+        # append
+        with pd.ExcelWriter(
+            file_name,
+            engine="openpyxl",
+            mode="a",
+            if_sheet_exists="replace"
+        ) as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+    else:
+        # create new file
+        with pd.ExcelWriter(
+            file_name,
+            engine="openpyxl",
+            mode="w"
+        ) as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
 
 def create_output_folder(poutput, pforce_output):
     """Create (and overwrite) a new output folder at location poutput
@@ -274,6 +559,11 @@ def write_clusters(clusters, gene_names, file_name, file_type):
     """Writing for each cluster the associated genes
     clusters: mcl output consisting of clusters and the genes they contain
     gene_names: list of gene names
+    The output file will have each cluster and its members, e.g.:
+    >cluster_number, cluster_size
+    cluster_member_1,
+    cluster_member_2,
+    ...
     """
     with open(file_name, 'w') as f:
         gene_cluster_nr = 0
@@ -311,6 +601,26 @@ def cluster_size_viz(clusters, file_name):
     plt.tight_layout()
     plt.savefig(file_name)
 
+
+def read_dissoc_freq(file_path):
+    if os.path.exists(file_path):
+        dissoc_freq = {}
+        with open(file_path, "r") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                # skip comments
+                if not row or row[0].startswith("#"):
+                    continue
+                # skip header
+                if row[0] == "Cluster1":
+                    continue
+                i = int(row[0])
+                j = int(row[1])
+                freq = float(row[2])
+                dissoc_freq[(i, j)] = freq
+        return dissoc_freq
+    else:
+        return {}
 
 def cluster_dissoc(dissoc_freq, global_freq, poutput):
     """
@@ -358,15 +668,21 @@ def assoc_genes_cytoscape(df, file_name):
     -------
     None.
     """
-
-    df.rename({'Gene_1': 'Node1', 'Gene_2': 'Node2', 'p-value adj': 'Force'}, axis=1, inplace=True)
-    df.drop(df.columns.difference(['Node1', 'Node2', 'Force']), axis=1, inplace=True)
+    print("Writing Gene Gene associations Edges for Cytoscape Visualization. Adjusted p-value - 0.5 is renamed to Force")
+    df.rename({'Gene_1': 'source', 'Gene_2': 'target', 'p-value adj': 'Force'}, axis=1, inplace=True)
+    #df.drop(df.columns.difference(['source', 'target', 'Force']), axis=1, inplace=True)
     df['Force'] = df['Force'] - 0.5
     df['pair_type'] = 'gene-gene-assoc'
-    df.to_csv(file_name, index=False)
+    #df.to_csv(file_name, index=False)
+    try:
+        ### saving as excel sheet
+        save_sheet(df, file_name, 'gene_gene_assoc')
+    except:
+        file_name = file_name.replace("_input.xlsx", "_edges_gene_gene_assoc.csv")
+        df.to_csv(file_name, index=False)
 
 
-def dissoc_genes_cytoscape(df, file_name):
+def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
     """
     Write to the internal cytoscape file used for the node layout.
     Force of dissociated genes is (0.5 - adjusted p-value) to pull strongly dissociated genes
@@ -378,20 +694,79 @@ def dissoc_genes_cytoscape(df, file_name):
         dataframe of dissociating gene pairs as constructed in this class
     file_name : str
         file name of cytoscape input
+    dissoc_freq : Dict (int, int) -> float
+        keys: tuple of cluster nr, values: average dissociation p-value
 
     Returns
     -------
     None.
     """
-
-    df.rename({'Gene_1': 'Node1', 'Gene_2': 'Node2', 'p-value adj': 'Force'}, axis=1, inplace=True)
-    df.drop(df.columns.difference(['Node1', 'Node2', 'Force']), axis=1, inplace=True)
+    print("Writing Gene Gene disassociations Edges for Cytoscape Visualization. 0.5 - adjusted p-value is renamed to Force")
+    df.rename({'Gene_1': 'source', 'Gene_2': 'target', 'p-value adj': 'Force'}, axis=1, inplace=True)
+    #df.drop(df.columns.difference(['source', 'target', 'Force']), axis=1, inplace=True)
     df['Force'] = 0.5 - df['Force']
     df['pair_type'] = 'gene-gene-dissoc'
-    df.to_csv(file_name, mode='a', header=False, index=False)
+    #df.to_csv(file_name, mode='a', header=False, index=False)
+    try:
+        ### saving as excel sheet
+        save_sheet(df, file_name, 'gene_gene_dissoc')
+    except:
+        file_name = file_name.replace("_input.xlsx", "_edges_gene_gene_dissoc.csv")
+        df.to_csv(file_name, index=False)
 
 
-def clusters_cytoscape(dissoc_freq, cluster_dict, poutput):
+    print("Writing Cluster Cluster disassociations Edges for Cytoscape Visualization. Force is disassociation frequency")
+    data_dict = {'source':[], 'target':[], 'Force':[],'pair_type':[]}
+    for (i, j) in dissoc_freq:
+            if dissoc_freq[(i, j)] > 0:
+                data_dict['source'] = data_dict['source'] + [f'cl_{i}']
+                data_dict['target'] = data_dict['target'] + [f'cl_{j}']
+                data_dict['Force'] = data_dict['Force'] + [dissoc_freq[(i,j)]]
+                data_dict['pair_type'] = data_dict['pair_type'] + ['cluster-cluster-dissoc']
+    if len(data_dict['source']) == 0:
+        print("Warning: no cluster-cluster disassociations detected.")
+        return
+    
+    df = pd.DataFrame(data_dict)
+    
+    try:
+        ### saving as excel sheet
+        save_sheet(df, file_name, 'cluster_cluster_dissoc_standard')
+    except:
+        file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_dissoc.csv")
+        df.to_csv(file_name, index=False)
+
+    ### if gene-based cluster dissociation was performed, also write these edges to the cytoscape file
+    outputdir = os.path.dirname(file_name)
+    try:
+        gene_based_cluster_dissoc_file = os.path.join(outputdir, [f for f in os.listdir(outputdir) if f.startswith("Dissociation_between_clusters_genebased")][0])
+    except IndexError:
+        print("Warning: no gene-based cluster dissociation file found.")
+        return
+    # import gene-based cluster dissociation results
+    df = pd.read_csv(gene_based_cluster_dissoc_file, comment="#")
+    # rename + transform to match Cytoscape format
+    df = df.rename(columns={
+        'Cluster1': 'source',
+        'Cluster2': 'target',
+        'GeneForce': 'Force'    ### necessary to merge with other tables for cytoscape
+    })
+
+    df['source'] = df['source'].astype(str)
+    df['target'] = df['target'].astype(str)
+    ### fix cluster label if necessary
+    df['source'] = df['source'].where(df['source'].str.startswith('cl_'), 'cl_' + df['source'])
+    df['target'] = df['target'].where(df['target'].str.startswith('cl_'), 'cl_' + df['target'])
+    df['pair_type'] = 'cluster-cluster-dissoc'
+    try:
+        ### saving as excel sheet
+        save_sheet(df, file_name, 'cluster_cluster_dissoc_genebase')
+    except:
+        file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_dissoc_genebase.csv")
+        df.to_csv(file_name, index=False)
+    
+
+def clusters_cytoscape(cluster_dict, file_name):
     """
     Write to the internal cytoscape file used for the node layout.
     Force of Genes to their cluster nodes is 5 so these are grouped together for sure.
@@ -401,8 +776,7 @@ def clusters_cytoscape(dissoc_freq, cluster_dict, poutput):
 
     Parameters
     ----------
-    dissoc_freq : Dict (int, int) -> float
-        keys: tuple of cluster nr, values: average dissociation p-value
+    
     cluster_dict : Dict str -> int
         Dictionary of gene_name to ID of MCL cluster, which was generated using gene associations
     poutput : str
@@ -412,7 +786,7 @@ def clusters_cytoscape(dissoc_freq, cluster_dict, poutput):
     -------
     None.
     """
-
+    '''
     print("Writing Cluster Nodes for Cytoscape Visualization")
     with open(f'{poutput}/cytoscape_input.csv', 'a') as file:
 
@@ -424,6 +798,32 @@ def clusters_cytoscape(dissoc_freq, cluster_dict, poutput):
         for (i, j) in dissoc_freq:
             if dissoc_freq[(i, j)] > 0:
                 file.write(f'cl_{i},cl_{j},{dissoc_freq[(i,j)] + 1},cluster-cluster-dissoc\n')
+    '''
+
+    print("Writing Cluster Edges for Cytoscape Visualization. Force is set to 5")
+
+    data_dict = {'source':[], 'target':[],'Force':[],'pair_type':[]}
+    for gene in cluster_dict:
+        data_dict['source'] = data_dict['source'] + [gene]
+        data_dict['target'] = data_dict['target'] + [f'cl_{cluster_dict[gene]}']
+        data_dict['Force'] = data_dict['Force'] + [5]
+        data_dict['pair_type'] = data_dict['pair_type'] + ['gene-cluster-member']
+    if len(data_dict['source']) == 0:
+        print("Warning: no gene-cluster memberships detected. Check files!")
+        return
+    
+    df = pd.DataFrame(data_dict)
+    
+    try:
+        ### saving as excel sheet
+        save_sheet(df, file_name, "gene_cluster_member")
+    except:
+        file_name = file_name.replace("_input.xlsx", "_edges_gene_cluster_member.csv")
+        df.to_csv(file_name, index=False)
+
+
+    
+
 
 
 def clusters_assoc_cytoscape(assoc_freq, cluster_dict, poutput):
@@ -447,13 +847,37 @@ def clusters_assoc_cytoscape(assoc_freq, cluster_dict, poutput):
     None.
     """
 
-    print("Writing Cluster Nodes for Cytoscape Visualization")
+    print("Writing Cluster Cluster association edges for Cytoscape Visualization. Force is association frequency")
+    '''
     with open(f'{poutput}/cytoscape_input.csv', 'a') as file:
 
         # write cluster-cluster-assoc pairs
         for (i, j) in assoc_freq:
             if assoc_freq[(i, j)] > 0:
                 file.write(f'cl_{i},cl_{j},{assoc_freq[(i,j)] + 1},cluster-cluster-assoc\n')
+    '''
+
+    data_dict = {'source':[], 'target':[], 'Force':[],'pair_type':[]}
+    for (i, j) in assoc_freq:
+            if assoc_freq[(i, j)] > 0:
+                data_dict['source'] = data_dict['source'] + [f'cl_{i}']
+                data_dict['target'] = data_dict['target'] + [f'cl_{j}']
+                data_dict['Force'] = data_dict['Force'] + [assoc_freq[(i,j)]]
+                data_dict['pair_type'] = data_dict['pair_type'] + ['cluster-cluster-assoc']
+    if len(data_dict['source']) == 0:
+        print("Warning: no cluster-cluster associations detected.")
+        return
+    
+    df = pd.DataFrame(data_dict)
+    file_name = f'{poutput}/cytoscape_input.xlsx'
+    try:
+        ### saving as excel sheet
+        with pd.ExcelWriter(file_name, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+            df.to_excel(writer, sheet_name="cluster_cluster_assoc", index=False)
+    except:
+        file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_assoc.csv")
+        df.to_csv(file_name, index=False)
+
 
 
 def write_adjac_matrix(adj_mtx, poutput):
