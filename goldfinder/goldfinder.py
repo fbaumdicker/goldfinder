@@ -54,7 +54,13 @@ def argparser():
 
     # Preprocessing
     parser.add_argument("-prep", "--preprocess", action="store_true",
-                        help="Genes present in less than 5%% of sample are removed")
+                        help="Genes with a frequency outside [freq_min, freq_max] are removed")
+    parser.add_argument("-fmin", "--freq_min", nargs='?', default=0.05, type=float,
+                        help="Minimum fraction of genomes a gene must be present in to be kept. "
+                        "Only relevant if --preprocess is set.")
+    parser.add_argument("-fmax", "--freq_max", nargs='?', default=0.95, type=float,
+                        help="Maximum fraction of genomes a gene may be present in to be kept. "
+                        "Only relevant if --preprocess is set.")
     parser.add_argument("-tinf", "--tree_inference", nargs='?', choices=["nj", "ml"], default="nj",
                         help="Method with which a phylogenic tree will be inferred. Choices: nj "
                         "(Neighbor joining), ml (Maximum likelihood). Default: nj")
@@ -146,7 +152,7 @@ def main():
         p.input, p.file_type, p.metadata, p.known_associations)
 
     # Preprocessing
-    pre_df = preprocessing.preproc(df, p.preprocess)
+    pre_df = preprocessing.preproc(df, p.preprocess, p.freq_min, p.freq_max)
 
     # Constructing tree structure from nwk string or from distance matrix
     tree_struc, tip_lvlorder, branch_distances = tree_reconstruction.main(p.tree, p.tree_inference,

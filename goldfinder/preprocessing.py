@@ -1,12 +1,14 @@
-def preproc(df, ppreprocess):
+def preproc(df, ppreprocess, freq_min=0.05, freq_max=0.95):
     """
     df: pandas dataframe to preprocess
-    ppreprocess: boolean for removing genes present in less than 5% of genomes
+    ppreprocess: boolean for removing genes with frequency outside [freq_min, freq_max]
+    freq_min: minimum fraction of genomes a gene must be present in
+    freq_max: maximum fraction of genomes a gene may be present in
     return: pandas dataframe
     """
     df = general_preproc(df)
     if ppreprocess:
-        df = rm_insufficient_genes(df)
+        df = rm_insufficient_genes(df, freq_min, freq_max)
     return df
 
 
@@ -22,14 +24,17 @@ def general_preproc(df):
     return df
 
 
-def rm_insufficient_genes(df):
-    """Pre-processing to remove genes present in less than 5% of genomes
+def rm_insufficient_genes(df, freq_min=0.05, freq_max=0.95):
+    """Pre-processing to remove genes with a frequency outside [freq_min, freq_max]
     df: pandas dataframe containing gene presence absence from input
+    freq_min: minimum fraction of genomes a gene must be present in
+    freq_max: maximum fraction of genomes a gene may be present in
     return: pandas dataframe with adjusted columns
     """
-    print("Preprocessing: Removing genes appearing only in 5% of genomes")
+    print(f"Preprocessing: Removing genes with frequency below {freq_min} or above {freq_max}")
     ns = len(df.columns)  # get number of samples
-    tresh = round(ns * 0.05)  # int representing 5% of number of samples
-    df = df.loc[df.sum(axis=1) >= tresh]  # remove genes present in less than 5% of sample
+    tresh_min = round(ns * freq_min)  # int representing freq_min fraction of number of samples
+    tresh_max = round(ns * freq_max)  # int representing freq_max fraction of number of samples
+    df = df.loc[(df.sum(axis=1) >= tresh_min) & (df.sum(axis=1) <= tresh_max)]
 
     return df

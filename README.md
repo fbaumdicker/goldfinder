@@ -128,7 +128,13 @@ File output:
                         exist. (default: False)
 
 Preprocessing:
-  -prep, --preprocess   Genes present in less than 5% of sample are removed
+  -prep, --preprocess   Genes with a frequency outside [freq_min, freq_max] are removed
+  -fmin [FREQ_MIN], --freq_min [FREQ_MIN]
+                        Minimum fraction of genomes a gene must be present in to be
+                        kept. Only relevant if --preprocess is set. (default: 0.05)
+  -fmax [FREQ_MAX], --freq_max [FREQ_MAX]
+                        Maximum fraction of genomes a gene may be present in to be
+                        kept. Only relevant if --preprocess is set. (default: 0.95)
   -tinf [{nj,ml}], --tree_inference [{nj,ml}]
                         Method with which a phylogenic tree will be inferred. Choices: nj
                         (Neighbor joining), ml (Maximum likelihood). (default: nj)
