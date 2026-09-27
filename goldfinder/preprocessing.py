@@ -33,8 +33,7 @@ def rm_insufficient_genes(df, freq_min=0.05, freq_max=0.95):
     """
     print(f"Preprocessing: Removing genes with frequency below {freq_min} or above {freq_max}")
     ns = len(df.columns)  # get number of samples
-    tresh_min = round(ns * freq_min)  # int representing freq_min fraction of number of samples
-    tresh_max = round(ns * freq_max)  # int representing freq_max fraction of number of samples
-    df = df.loc[(df.sum(axis=1) >= tresh_min) & (df.sum(axis=1) <= tresh_max)]
+    freq = df.sum(axis=1) / ns  # fraction of genomes each gene is present in
+    df = df.loc[(freq >= freq_min) & (freq <= freq_max)]
 
     return df

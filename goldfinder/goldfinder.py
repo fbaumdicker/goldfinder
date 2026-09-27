@@ -55,10 +55,10 @@ def argparser():
     # Preprocessing
     parser.add_argument("-prep", "--preprocess", action="store_true",
                         help="Genes with a frequency outside [freq_min, freq_max] are removed")
-    parser.add_argument("-fmin", "--freq_min", nargs='?', default=0.05, type=float,
+    parser.add_argument("-fmin", "--freq_min", default=0.05, type=float,
                         help="Minimum fraction of genomes a gene must be present in to be kept. "
                         "Only relevant if --preprocess is set.")
-    parser.add_argument("-fmax", "--freq_max", nargs='?', default=0.95, type=float,
+    parser.add_argument("-fmax", "--freq_max", default=0.95, type=float,
                         help="Maximum fraction of genomes a gene may be present in to be kept. "
                         "Only relevant if --preprocess is set.")
     parser.add_argument("-tinf", "--tree_inference", nargs='?', choices=["nj", "ml"], default="nj",
@@ -126,7 +126,8 @@ def argparser():
             print('Error: the following arguments are required: ' + ', '.join(missing_args))
             exit('To display the help message, please use goldfinder.py --help')
 
-
+    if args.freq_min >= args.freq_max:
+        exit('Error: -fmin/--freq_min must be smaller than -fmax/--freq_max.')
 
     return args
 
