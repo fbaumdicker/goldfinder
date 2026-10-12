@@ -59,6 +59,9 @@ def dissociation_freq(cluster_dict, p_values_adj, simple_idx):
 
     # p_values_adj's index might contain additional information, separated by /
     id_to_index = {}
+
+    #### NOTE: here instead of simple_idx, we should consider transforming the p_valuses_adj 
+    #### in a common format
     if simple_idx:
         all_ids = p_values_adj.index
     else:
@@ -78,8 +81,10 @@ def dissociation_freq(cluster_dict, p_values_adj, simple_idx):
                 indices_1 = [id_to_index[iden] for iden in all_ids.intersection(rev_dict[cl1])]
                 indices_2 = [id_to_index[iden] for iden in all_ids.intersection(rev_dict[cl2])]
 
+            # fix after separating visualization:
+            sub = p_values_adj.reindex(index=indices_1, columns=indices_2)
             # divisor will never be 0 because clusters dict has no empty clusters
-            dissoc_freq[(cl1, cl2)] = (p_values_adj.loc[indices_1, indices_2]
+            dissoc_freq[(cl1, cl2)] = (sub
                                        .notna().to_numpy().sum()
                                        / (len(rev_dict[cl1]) * len(rev_dict[cl2])))
     else:
