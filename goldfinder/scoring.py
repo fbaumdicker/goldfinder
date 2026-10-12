@@ -94,8 +94,8 @@ def additional_scoring(add_simul_anc_states, add_simul_desc_states, add_simul_co
     for i, counts in enumerate(add_null_dist_scores_numba):
         add_null_dist_scores[i - num_ancs] = counts
 
-    # Why are we doing this? Scaling the results to pretend we simulated over the whole score range?
-    add_null_dist_scores = {key: add_null_dist_scores[key] * k_frac for key in add_null_dist_scores}
+    # Scaling the results to pretend we simulated over the whole score range.
+    add_null_dist_scores = {key: add_null_dist_scores[key] * k_frac ** 2 for key in add_null_dist_scores}
 
     # Add values of null_dist_scores for keys < k and more precise values of add_null_dist_scores
     # for keys >= k and keys <= -k into an updated dictionary

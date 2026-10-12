@@ -1,0 +1,24 @@
+Gene_1,Gene_name_1,Annotation_1,Gene_2,Gene_name_2,Annotation_2,p-value unadj,p-value adj
+group_12076,,transposase;IS110 family transposase;Transposase,group_5369,,hypothetical protein,0.0,0.0
+group_6644,,porin,cueR,;cueR,Cu(I)-responsive transcriptional regulator;transcriptional regulator MerR family,0.0,0.0
+group_7232,,prepilin-type N-terminal cleavage,group_9566,,MSHA biogenesis protein MshP,0.0,0.0
+group_6328,,aldolase;hypothetical protein,ulaR,;ulaR,transcriptional regulator;HTH-type transcriptional regulator UlaR,5.669324e-11,0.019183794
+group_6328,,aldolase;hypothetical protein,ulaD,ulaD;,3-keto-L-gulonate-6-phosphate decarboxylase;3-keto-L-gulonate-6-phosphate decarboxylase UlaD,5.669324e-11,0.019183794
+group_6328,,aldolase;hypothetical protein,group_7432,,HAD family hydrolase,5.669324e-11,0.019183794
+group_6328,,aldolase;hypothetical protein,group_8293,,xylulose 5-phosphate 3-epimerase;L-ribulose-5-phosphate 3-epimerase,5.669324e-11,0.019183794
+group_6328,,aldolase;hypothetical protein,group_5178,,hypothetical protein,5.669324e-11,0.019183794
+group_7292,,hypothetical protein,ulaR,;ulaR,transcriptional regulator;HTH-type transcriptional regulator UlaR,5.669324e-11,0.019183794
+group_7292,,hypothetical protein,ulaD,ulaD;,3-keto-L-gulonate-6-phosphate decarboxylase;3-keto-L-gulonate-6-phosphate decarboxylase UlaD,5.669324e-11,0.019183794
+group_7292,,hypothetical protein,group_7432,,HAD family hydrolase,5.669324e-11,0.019183794
+group_7292,,hypothetical protein,group_8293,,xylulose 5-phosphate 3-epimerase;L-ribulose-5-phosphate 3-epimerase,5.669324e-11,0.019183794
+group_7292,,hypothetical protein,group_5178,,hypothetical protein,5.669324e-11,0.019183794
+group_7859,,oxidoreductase;hypothetical protein,ulaR,;ulaR,transcriptional regulator;HTH-type transcriptional regulator UlaR,5.669324e-11,0.019183794
+group_7859,,oxidoreductase;hypothetical protein,ulaD,ulaD;,3-keto-L-gulonate-6-phosphate decarboxylase;3-keto-L-gulonate-6-phosphate decarboxylase UlaD,5.669324e-11,0.019183794
+group_7859,,oxidoreductase;hypothetical protein,group_7432,,HAD family hydrolase,5.669324e-11,0.019183794
+group_7859,,oxidoreductase;hypothetical protein,group_8293,,xylulose 5-phosphate 3-epimerase;L-ribulose-5-phosphate 3-epimerase,5.669324e-11,0.019183794
+group_7859,,oxidoreductase;hypothetical protein,group_5178,,hypothetical protein,5.669324e-11,0.019183794
+group_8224,,DeoR family transcriptional regulator;glycerol-3-phosphate regulon repressor,ulaR,;ulaR,transcriptional regulator;HTH-type transcriptional regulator UlaR,5.669324e-11,0.019183794
+group_8224,,DeoR family transcriptional regulator;glycerol-3-phosphate regulon repressor,ulaD,ulaD;,3-keto-L-gulonate-6-phosphate decarboxylase;3-keto-L-gulonate-6-phosphate decarboxylase UlaD,5.669324e-11,0.019183794
+group_8224,,DeoR family transcriptional regulator;glycerol-3-phosphate regulon repressor,group_7432,,HAD family hydrolase,5.669324e-11,0.019183794
+group_8224,,DeoR family transcriptional regulator;glycerol-3-phosphate regulon repressor,group_8293,,xylulose 5-phosphate 3-epimerase;L-ribulose-5-phosphate 3-epimerase,5.669324e-11,0.019183794
+group_8224,,DeoR family transcriptional regulator;glycerol-3-phosphate regulon repressor,group_5178,,hypothetical protein,5.669324e-11,0.019183794

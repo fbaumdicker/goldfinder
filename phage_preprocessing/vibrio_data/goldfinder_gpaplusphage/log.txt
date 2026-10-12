@@ -1,0 +1,4 @@
+Threshold k of the more extreme scores: 5
+Fraction k_frac of scores in extreme region: 0.18822296124927704
+Significance level for association: 0.05
+Significance level for dissociation: 0.05

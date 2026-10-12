@@ -48,7 +48,7 @@ def gene_based_cluster_dissoc(disassoc_pairs_file, poutput,
     ])
     filtered = all_disassoc_pairs[mask]
     ### compare size difference
-    size_diff = filtered['Gene_1'].size - filtered['Gene_2'].size
+    size_diff = len(all_disassoc_pairs) - len(filtered)
     print(f"Filtered out within-MCL clusters disassociations: {size_diff}")
 
     ### first plot the distribution of gene-based scores, to help choose thresholds
@@ -119,7 +119,7 @@ def gene_based_cluster_dissoc(disassoc_pairs_file, poutput,
 def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cluster_dict,
                      clusters, locus_dict, poutput, pscore, mode, pfile_type, perform_clustering,
                      known_assoc, cluster_dissoc_method='standard', cluster_dissoc_threshold=0.0,
-                     gene_dissoc_threshold=0.5):
+                     gene_dissoc_threshold=0.5, metadata=None):
 
     if clusters:
         print("Writing association clusters")
@@ -133,14 +133,13 @@ def result_procedure(p_values_adj, p_values_unadj, significant_score_indices, cl
         cluster_file = None
 
     print("\nWriting significant gene pairs to output")
-    gene_pair_file = f'{poutput}/{pscore}_{mode}_significant_pairs.txt'
+    gene_pair_file = f'{poutput}/{pscore}_{mode}_significant_pairs.csv'
     write_significant_gp(p_values_adj, p_values_unadj, significant_score_indices, cluster_dict,
-                         locus_dict, gene_pair_file, pfile_type, perform_clustering, metadata=None,
-                         known_assoc=known_assoc)
+                         locus_dict, gene_pair_file, pfile_type, perform_clustering,
+                         metadata=metadata, known_assoc=known_assoc)
     if mode == 'dissociation' and cluster_dissoc_method in ["gene_based", "both"]:
         gene_based_cluster_dissoc(gene_pair_file, poutput,
                                   cluster_dissoc_threshold, gene_dissoc_threshold)
-
 
     print("Sorting output according to p-value")
     df = pd.read_csv(gene_pair_file, low_memory=False)
@@ -489,27 +488,23 @@ def assemble_gp_line(gene_1, gene_2, file_type, p_unadj, p_adj, locus_dict, perf
     """
     # this part depends on input format
     if file_type in ["roary", "panaroo"]:
-
-        s = (gene_1[0] + "," + gene_1[1] + "," + gene_1[2] + "," + gene_2[0] + "," +
-             gene_2[1] + "," + gene_2[2] + "," + str(p_unadj) + "," + str(p_adj))
+        fields = [gene_1[0], gene_1[1], gene_1[2], gene_2[0], gene_2[1], gene_2[2],
+                  str(p_unadj), str(p_adj)]
 
         # This is the id used in the following
         gene_1 = gene_1[0]
         gene_2 = gene_2[0]
 
     elif file_type == "panx":
-
-        s = (gene_1[0] + "," + gene_1[1] + "," + gene_1[2] + "," + locus_dict[gene_1[0]] + "," +
-             gene_2[0] + "," + gene_2[1] + "," + gene_2[2] + "," + locus_dict[gene_2[0]] + "," +
-             str(p_unadj) + "," + str(p_adj))
+        fields = [gene_1[0], gene_1[1], gene_1[2], locus_dict[gene_1[0]], gene_2[0], gene_2[1], 
+                  gene_2[2], locus_dict[gene_2[0]], str(p_unadj), str(p_adj)]
 
         # This is the id used in the following
         gene_1 = gene_1[0]
         gene_2 = gene_2[0]
 
     elif file_type in ["matrix", "tab"]:
-
-        s = gene_1 + "," + gene_2 + "," + str(p_unadj) + "," + str(p_adj)
+        fields = [gene_1, gene_2, str(p_unadj), str(p_adj)]
 
     # this part does not depend on input format but on arguments
     if perform_clustering:
@@ -519,27 +514,23 @@ def assemble_gp_line(gene_1, gene_2, file_type, p_unadj, p_adj, locus_dict, perf
                 clusters[gene_1] == clusters[gene_2]):
             cluster_name = str(clusters[gene_1])
 
-        s += ","
-        s += cluster_name
+        fields.append(cluster_name)
 
     if metadata is not None:
-        s += ","
-        s += ",".join(metadata.loc[gene_1, :])
-        s += ","
-        s += ",".join(metadata.loc[gene_2, :])
+        fields += metadata.loc[gene_1, :].astype(str).to_list()
+        fields += metadata.loc[gene_2, :].astype(str).to_list()
 
     if known_assoc_to_write is not None:
-        s += ","
         tup = (gene_1, gene_2) if gene_1 > gene_2 else (gene_2, gene_1)
 
         if tup in known_assoc_to_write:
             # remove the element when it is written
             known_assoc_to_write.remove(tup)
-            s += 'yes'
+            fields.append('yes')
         else:
-            s += 'no'
+            fields.append('no')
 
-    s += "\n"
+    s = ','.join(map(quote_commas, fields)) + "\n"
     return s, known_assoc_to_write
 
 
@@ -801,7 +792,7 @@ def clusters_cytoscape(cluster_dict, file_name):
 
         # write gene-cluster pairs
         for gene in cluster_dict:
-            file.write(f'{gene},cl_{cluster_dict[gene]},5,gene-cluster-member\n')
+            file.write(f'{quote_commas(gene)},cl_{cluster_dict[gene]},5,gene-cluster-member\n')
 
         # write cluster-cluster-dissoc pairs
         for (i, j) in dissoc_freq:
@@ -913,3 +904,12 @@ def sort_output(df, file_name):
     """
 
     df.sort_values(by=['p-value adj', 'Gene_1']).to_csv(file_name, index=False)
+
+
+def quote_commas(s):
+    """
+    Add double quotes around the string, if it contains commas. Necessary to write valid .csv files
+    """
+    if ',' in s:
+        return f"\"{s}\""
+    return s

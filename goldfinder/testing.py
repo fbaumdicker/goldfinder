@@ -46,6 +46,14 @@ def testing_procedure(null_dist_scores, input_scores, mode, palpha, ppvalue_corr
             except KeyError:  # The genes might have been filtered out during preprocessing
                 known_assoc[(gene1, gene2)] = (1.0, 1.0)
 
+    if mode == "association":
+        min_significant_k = np.nanmin(input_scores[(p_values_adj < float(sig_lvl))])
+        output.write_log(poutput, f"simultaneous score threshold for {mode}: {min_significant_k}")
+
+    if mode == "dissociation":
+        max_significant_k = np.nanmax(input_scores[(p_values_adj < float(sig_lvl))])
+        output.write_log(poutput, f"simultaneous score threshold for {mode}: {max_significant_k}")
+
     # drop all non-associated genes and set p-values > alpha to nan
     p_values_adj, significant_indices = crop_significance(p_values_adj, sig_lvl)
 

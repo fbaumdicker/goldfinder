@@ -1,0 +1,5 @@
+# global fraction of significant dissociations: 5.226918622543027e-09
+# Only contains pairs of clusters with fraction > 0
+Cluster1,Cluster2,Portion of Significant Gene Pairs between Clusters
+43,100,0.08333333333333333
+55,69,0.015384615384615385

@@ -12,6 +12,7 @@ import scoring
 import argparse
 import random
 import numpy as np
+import tests
 
 
 def argparser():
@@ -25,16 +26,17 @@ def argparser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Input
-    parser.add_argument("-i", "--input", required=True,
-                        help="File containing gene presence/absence data, or panX folder", default=argparse.SUPPRESS)
+    parser.add_argument("-i", "--input", help="File containing gene presence/absence data, or panX "
+                        "folder", default=argparse.SUPPRESS)
     parser.add_argument("-f", "--file_type", nargs='?', choices=["roary", "tab", "panx", "matrix"],
                         default="matrix", help="Clarifying which input file type Goldfinder is "
                         "dealing with: a) roary (or panaroo), b) tab, c) panx d) .csv matrix in "
                         "pandas format")
-    parser.add_argument("-t", "--tree", required=True, nargs='?', const=None,
+    parser.add_argument("-t", "--tree", nargs='?', const=None,
                         help="User's phylogenetic tree in newick string format. Required, but if "
                         "given without argument, a phylogenetic tree is calculated from the input "
-                        "table and used in further analysis.")
+                        "table and used in further analysis.", default=argparse.SUPPRESS)
+
     
 
     # Output
@@ -53,10 +55,10 @@ def argparser():
                         "(Neighbor joining), ml (Maximum likelihood). Default: nj")
 
     # Simulation
-    parser.add_argument("-g", "--genes_simulated", nargs='?', default=10000,
+    parser.add_argument("-g", "--genes_simulated", nargs='?', default=50000,
                         help="integer specifying number of genes to be simulated for estimating the"
                         " null distribution.")
-    parser.add_argument("-add", "--additional", default=0.9999, type=float, help="Percentile of "
+    parser.add_argument("-add", "--additional", default=0.999, type=float, help="Percentile of "
                         "scores for which addional fine-grained simulation will be performed. Only "
                         "relevant for simultaneous score.")
 
@@ -71,10 +73,10 @@ def argparser():
                         "correction method: bonferroni, false discovery rate, or none")
     parser.add_argument("-k", "--known_associations", nargs='?', default=0, help="Number of surely"
                         " occurring associations (or dissociations) or path to a list in the format"
-                        "'Gene1\\tGene2' of all surely associated gene pairs. Number is inferred "
-                        "from the list and used to improve multiple testing correction (Bonferroni "
-                        "and FDR). If a list, the gene pairs will be marked in the output, even if "
-                        "the corresponding p-value is not siginificant.")
+                        " 'Gene1\\tGene2' (\\t denotes tab) of all surely associated gene pairs.' "
+                        "Number is inferred from the list and used to improve multiple testing "
+                        "correction (Bonferroni and FDR). If a list, the gene pairs will occur "
+                        "in the output, even if the corresponding p-value is not siginificant.")
 
     # Clustering
     parser.add_argument("-inf", "--inflation", nargs='?', default=2.5,
@@ -123,15 +125,46 @@ def argparser():
                         "clusters will be calculated and Cytoscape output will be generated.")
     parser.add_argument("--seed", nargs='?', type=int, help="An integer to be used as a random seed"
                         " in order to make the result reproducible.", default=None)
+    parser.add_argument("--tests", action='store_true', help="Perform tests and exit.")
 
     args = parser.parse_args()
+
+    # Check for required arguments if user does not just want to check tests
+    if not args.tests:
+        missing_args = []
+
+        try:
+            args.input
+        except AttributeError:
+            missing_args.append('-i/--input')
+
+        try:
+            args.tree
+        except AttributeError:
+            missing_args.append('-t/--tree')
+
+        if missing_args:
+            print('Error: the following arguments are required: ' + ', '.join(missing_args))
+            exit('To display the help message, please use goldfinder.py --help')
+
+
+
     return args
 
 
 def main():
     p = argparser()
-    modes = ["association", "dissociation"] if p.coocurrence == 'both' else [p.coocurrence]
     
+    if p.visualization != 'only':
+        random.seed(p.seed)
+        np.random.seed(p.seed)
+
+    if p.tests:
+        tests.perform_tests()
+        exit()
+
+    modes = ["association", "dissociation"] if p.coocurrence == 'both' else [p.coocurrence]
+
     if p.visualization != 'only':
         random.seed(p.seed)
         np.random.seed(p.seed)
@@ -164,6 +197,9 @@ def main():
         new_dist_both) = simulation.simu(fitch_score_root_one, fitch_score_root_zero,
                                         fitch_score_root_both, tree_struc, branch_distances,
                                         int(p.genes_simulated))
+        output.write_log(p.output, f"fitch score distribution for root state 1: {fitch_score_root_one}")
+        output.write_log(p.output, f"fitch score distribution for root state 0: {fitch_score_root_zero}")
+        output.write_log(p.output, f"fitch score distribution for unknown root state: {fitch_score_root_both}")
 
         # Calculate scores for simulated data and input data")
         null_dist_scores, input_scores = scoring.scoring_procedure(
@@ -189,12 +225,12 @@ def main():
                     null_dist_scores, p.output)
 
         cluster_dict = None
-        
         for mode in modes:
             print(f"Testing for {mode}")
             significant_score_indices, p_values_unadj, p_values_adj, sig_lvl, known_assoc = \
                 testing.testing_procedure(null_dist_scores, input_scores, mode, p.alpha,
                                         p.pvalue_correction, p.output, num_known_assoc, known_assoc)
+
             if p.coocurrence == 'both' and mode == 'dissociation' and not p.no_clustering:
                 print("Calculating Average Dissociation between Clusters")
                 if p.cluster_dissoc_method in ["standard", "both"]:
@@ -204,7 +240,6 @@ def main():
                     num_significant = significant_score_indices[0].size
                     num_gene_pairs = input_scores.shape[0] * (input_scores.shape[0] - 1) / 2
                     output.cluster_dissoc(dissoc_freq, num_significant / num_gene_pairs, p.output)
-                
 
                 #output.clusters_cytoscape(dissoc_freq, cluster_dict, p.output)
             else:
@@ -214,15 +249,16 @@ def main():
             if perform_clustering:
                 print("Clustering")
             cluster_dict, clusters = clustering.cluster_procedure(p_values_adj, sig_lvl,
-                                                                float(p.inflation), p.output,
-                                                                perform_clustering)
+                                                              float(p.inflation), p.output,
+                                                              perform_clustering)
 
             print(f"\nPreparing output files for {mode}")
             output.result_procedure(p_values_adj, p_values_unadj, significant_score_indices,
                                     cluster_dict, clusters, locus_dict, p.output, p.score, mode,
                                     p.file_type, perform_clustering,
-                                    known_assoc, p.cluster_dissoc_method, 
-                                    p.cluster_dissoc_threshold, p.gene_dissoc_threshold)
+                                    known_assoc, p.cluster_dissoc_method,
+                                    p.cluster_dissoc_threshold, p.gene_dissoc_threshold,
+                                    metadata=metadata)
             
 
             
@@ -230,7 +266,7 @@ def main():
         print("Preparing visualization files for Cytoscape")
         for mode in modes:
             cytoscape_file = f'{p.output}/cytoscape_input.xlsx'
-            gene_pair_file = f'{p.output}/{p.score}_{mode}_significant_pairs.txt'
+            gene_pair_file = f'{p.output}/{p.score}_{mode}_significant_pairs.csv'
             if p.no_clustering or mode == "dissociation":
                 cluster_file = None
             else:

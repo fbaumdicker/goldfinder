@@ -1,0 +1,24 @@
+>192,2
+group_10183,deoxyribonuclease HsdR
+group_9389_DEF_RM
+>195,6
+group_11655,hypothetical protein;lecithin retinol acyltransferase family protein
+group_8052,ribonuclease HI
+group_6864,integrase;tyrosine-type recombinase/integrase
+group_6863,hypothetical protein;DUF2787 domain-containing protein
+group_5655,hypothetical protein;DUF2787 domain-containing protein
+group_11727_DEF_MADS+RM
+>227,2
+group_12104,S-adenosylhomocysteine hydrolase
+group_12106_DEF_SanaTA+RM
+>261,2
+group_13129,ATPase
+group_10215_DEF_PD-Lambda-1
+>290,2
+group_11981,hypothetical protein
+group_11561_DEF_PrrC
+>308,4
+group_10534,ATP F0F1 synthase synthase;hypothetical protein
+group_10168,hypothetical protein
+group_10166,restriction endonuclease subunit R
+group_9316_DEF_RM

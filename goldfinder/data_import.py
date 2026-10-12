@@ -33,8 +33,8 @@ def load_input(pinput, filetype, pmetadata, pknown_associations):
             exit("Error: input matrix has zero columns or rows. Maybe the matrix is not properly "
                  "formatted?")
         if not df.isin([0, 1]).all().all():
-            exit("Error: Values other than 0 and 1 enountered in input matrix.")
-
+            exit("Error: Values other than 0 and 1 enountered in input matrix. If you provide input"
+                 " in another format than a binary matrix please use the -f parameter.")
         df = df.astype(int)
 
     """

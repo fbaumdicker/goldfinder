@@ -5,7 +5,7 @@
 
 <h1 align="center"> Goldfinder </h1>
 
-<h3 align="center">A tool for identifying significant gene co-occurrances in
+<h3 align="center">A tool for identifying significant gene co-occurrences in
 microbial strains while accounting for their
 phylogenetic relationship</h3>
 
@@ -49,6 +49,11 @@ git clone https://github.com/fbaumdicker/goldfinder.git
 cd goldfinder
 python -m pip install -r requirements.txt
 ```
+
+If you run into an error message like `error: command 'gcc' failed: No such file or directory`, gcc might not be installed. Check this with gcc --version.
+
+On Windows, if pip throws an error "Cannot open include file: 'io.h': No such file or directory", you might need to install Microsoft C++ compiler. Get it here: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+And also tick SDK for Desktop C++. Refer to: https://stackoverflow.com/questions/40018405/cannot-open-include-file-io-h-no-such-file-or-directory
 
 ##### Dependencies:
 `Bio`==1.6.0 \
@@ -131,11 +136,11 @@ Preprocessing:
 Simulation:
   -g [GENES_SIMULATED], --genes_simulated [GENES_SIMULATED]
                         integer specifying number of genes to be simulated for estimating
-                        the null distribution. (default: 10000)
+                        the null distribution. (default: 50000)
   -add ADDITIONAL, --additional ADDITIONAL
                         Percentile of scores for which addional fine-grained simulation
                         will be performed. Only relevant for simultaneous score.
-                        (default: 0.9999)
+                        (default: 0.999)
 
 Testing:
   -s [{terminal,simultaneous,subsequent,coinfinder}], --score [{terminal,simultaneous,subsequent,coinfinder}]
@@ -175,7 +180,7 @@ Miscellaneous:
 #### `association_clusters.txt`
 This file defines gene clusters as found by Markov clustering based on association scores. Each cluster starts with `>` followed by clulster ID and its size. In the following lines, all genes contained in the cluster are listed.
 
-#### `{score}_{association/dissociation}_significant_pairs.txt`
+#### `{score}_{association/dissociation}_significant_pairs.csv`
 This comma-separated file lists all gene pairs that are significantly associated/dissociated according to the chosen score. If appropriate, it also contains a `Cluster` column with the 1-based number of the cluster, or a `-` if the genes do not belong to the same cluster.
 
 #### `cytoscape_input.csv`

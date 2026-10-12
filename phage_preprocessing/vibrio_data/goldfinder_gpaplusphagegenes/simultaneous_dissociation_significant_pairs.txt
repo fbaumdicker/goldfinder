@@ -1,0 +1,4 @@
+Gene_1,Gene_name_1,Annotation_1,Gene_2,Gene_name_2,Annotation_2,p-value unadj,p-value adj
+group_12076,,transposase;IS110 family transposase;Transposase,group_5369,,hypothetical protein,0.0,0.0
+group_6644,,porin,cueR,;cueR,Cu(I)-responsive transcriptional regulator;transcriptional regulator MerR family,0.0,0.0
+group_7232,,prepilin-type N-terminal cleavage,group_9566,,MSHA biogenesis protein MshP,0.0,0.0
