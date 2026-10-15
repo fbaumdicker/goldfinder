@@ -241,6 +241,15 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
         # Make a node df if necessary
         nodes_df = pd.DataFrame(genes_list, columns=['id'])
         nodes_df['node_type'] = 'gene'
+    else:
+        # Add genes missing from the existing node table
+        existing_genes = set(nodes_df['id'])
+        missing_genes = set(genes_list) - existing_genes
+        if missing_genes:
+            print(f"Adding {len(missing_genes)} missing gene nodes")
+            new_nodes = pd.DataFrame({'id': list(missing_genes)})
+            new_nodes['node_type'] = 'gene'
+            nodes_df = pd.concat([nodes_df, new_nodes], ignore_index=True)
 
     ### add metadata columns
     if metadata is not None:
@@ -282,7 +291,7 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
                                 .groupby("Cluster")
                                 .agg({col: collapse_or_mixed for col in metadata.columns if col not in ['Gene', 'Cluster']})
                                 .reset_index())
-            clusters_df = clusters_df.merge(cluster_metadata, left_on='id', right_on='Cluster')
+            clusters_df = clusters_df.merge(cluster_metadata, left_on='id', right_on='Cluster', how='left')
             clusters_df.drop(columns=['Cluster'], inplace=True)
         ### combine cluster info with node info
         nodes_df = pd.concat([nodes_df,clusters_df])
@@ -302,7 +311,8 @@ def write_node_metadata(poutput, cluster_dict, df, metadata):
     try:
         ### saving as excel sheet
         save_sheet(nodes_df, nodes_file, nodes_label)
-    except:
+    except ImportError as e:
+        print(f"Excel saving failed: {e}")
         nodes_file = nodes_file.replace("_input.xlsx", "_node_metadata.csv")
         nodes_df.to_csv(nodes_file, index=False)
 
@@ -710,10 +720,10 @@ def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
     try:
         ### saving as excel sheet
         save_sheet(df, file_name, 'gene_gene_dissoc')
-    except:
-        file_name = file_name.replace("_input.xlsx", "_edges_gene_gene_dissoc.csv")
-        df.to_csv(file_name, index=False)
-
+    except ImportError as e:
+        print(f"Excel saving unavailable: {e}")
+        csv_file = file_name.replace("_input.xlsx", "_edges_gene_gene_dissoc.csv")
+        df.to_csv(csv_file, index=False)
 
     print("Writing Cluster Cluster disassociations Edges for Cytoscape Visualization. Force is disassociation frequency")
     data_dict = {'source':[], 'target':[], 'Force':[],'pair_type':[]}
@@ -732,7 +742,8 @@ def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
     try:
         ### saving as excel sheet
         save_sheet(df, file_name, 'cluster_cluster_dissoc_standard')
-    except:
+    except ImportError as e:
+        print(f"Excel saving unavailable: {e}")
         file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_dissoc.csv")
         df.to_csv(file_name, index=False)
 
@@ -761,7 +772,8 @@ def dissoc_genes_cytoscape(df, file_name, dissoc_freq):
     try:
         ### saving as excel sheet
         save_sheet(df, file_name, 'cluster_cluster_dissoc_genebase')
-    except:
+    except ImportError as e:
+        print(f"Excel saving unavailable: {e}")
         file_name = file_name.replace("_input.xlsx", "_edges_cluster_cluster_dissoc_genebase.csv")
         df.to_csv(file_name, index=False)
     
