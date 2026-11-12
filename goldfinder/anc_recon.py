@@ -63,7 +63,7 @@ def recon(df, new_tree, tip_lvlorder):
         for j in range(len(fitch_tree)):
             if j > 0:
                 if fitch_tree[j][3] == 2:
-                    fitch_tree[j][3] = fitch_tree[fitch_tree[j][1]][3]
+                    fitch_tree[j][3] = fitch_tree[fitch_tree[j][0]][3]
 
                 descendant_state.append(fitch_tree[j][3])  # store current node state
                 # store node state of ancestor of current node
