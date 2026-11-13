@@ -925,3 +925,86 @@ def quote_commas(s):
     if ',' in s:
         return f"\"{s}\""
     return s
+
+
+def count_changes(anc_states, desc_states, counts):
+    """Distribution of the number of state changes per gene
+    anc_states, desc_states: per pattern, states of parent and node for every non-root node
+    counts: how often each pattern occurs
+    return: dict {number of changes: number of genes}
+    """
+    dist = {}
+    for anc, desc, count in zip(anc_states, desc_states, counts):
+        n_changes = sum(a != d for a, d in zip(anc, desc))
+        dist[n_changes] = dist.get(n_changes, 0) + count
+    return dist
+
+
+def write_homoplasy_report(poutput, input_dists, simulated_changes, recon_dists=None):
+    """Writing diagnostics on the homoplasy distributions to the log file
+    input_dists: (root 1, root 0, ambiguous root) Fitch score dicts of the input genes
+    simulated_changes: dict {number of changes: number of genes} of the true simulated histories
+    recon_dists: (root 1, root 0, ambiguous root) Fitch score dicts of the simulated genes after
+                 Fitch reconstruction, or None if no reconstruction was done
+    """
+
+    def merge(dists):
+        merged = {}
+        for d in dists:
+            for score, num in d.items():
+                merged[score] = merged.get(score, 0) + num
+        return merged
+
+    def summary(dist):
+        total = sum(dist.values())
+        mean = sum(score * num for score, num in dist.items()) / total
+        cumulative = 0
+        for score in sorted(dist):
+            cumulative += dist[score]
+            if cumulative >= total / 2:
+                median = score
+                break
+        return total, mean, median, dist.get(0, 0) / total
+
+    columns = [("input genes", merge(input_dists)), ("simulated changes", simulated_changes)]
+    if recon_dists is not None:
+        columns.append(("null after Fitch recon", merge(recon_dists)))
+
+    lines = ["", "=== Homoplasy diagnostics ===", "Root state of the Fitch reconstruction:"]
+    lines.append(f"{'':24s}{'root 0':>18s}{'root 1':>18s}{'ambiguous':>18s}")
+    root_rows = [("input genes", input_dists)]
+    if recon_dists is not None:
+        root_rows.append(("null after Fitch recon", recon_dists))
+    for name, (dist_one, dist_zero, dist_both) in root_rows:
+        nums = [sum(dist_zero.values()), sum(dist_one.values()), sum(dist_both.values())]
+        total = sum(nums)
+        lines.append(f"{name:24s}" + "".join(f"{f'{n} ({n / total:.2%})':>18s}" for n in nums))
+
+    lines.append("")
+    lines.append("Homoplasy distribution (number of genes and fraction per Fitch score / number "
+                 "of changes):")
+    lines.append(f"{'score':>6s}" + "".join(f"{name:>30s}" for name, _ in columns))
+    totals = [sum(dist.values()) for _, dist in columns]
+    all_scores = sorted(set().union(*[dist.keys() for _, dist in columns]))
+    for score in all_scores:
+        lines.append(f"{score:>6d}" + "".join(
+            f"{f'{dist.get(score, 0)} ({dist.get(score, 0) / total:.4f})':>30s}"
+            for (_, dist), total in zip(columns, totals)))
+
+    lines.append("")
+    for name, dist in columns:
+        total, mean, median, frac_zero = summary(dist)
+        lines.append(f"{name:24s} genes: {total}, mean: {mean:.3f}, median: {median}, "
+                     f"fraction with score 0 (constant tip pattern): {frac_zero:.4f}")
+
+    if recon_dists is not None:
+        input_dist, recon_dist = columns[0][1], columns[2][1]
+        input_total, recon_total = sum(input_dist.values()), sum(recon_dist.values())
+        tvd = 0.5 * sum(abs(input_dist.get(s, 0) / input_total - recon_dist.get(s, 0) / recon_total)
+                        for s in all_scores)
+        lines.append(f"Total variation distance between input and null homoplasy distribution "
+                     f"after Fitch recon: {tvd:.4f}")
+    lines.append("=== End of homoplasy diagnostics ===")
+    lines.append("")
+
+    write_log(poutput, "\n".join(lines))

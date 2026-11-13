@@ -67,6 +67,12 @@ def argparser():
     parser.add_argument("-add", "--additional", default=0.999, type=float, help="Percentile of "
                         "scores for which addional fine-grained simulation will be performed. Only "
                         "relevant for simultaneous score.")
+    parser.add_argument("--null_states", choices=["fitch", "truth"], default="fitch",
+                        help="Which states of the simulated genes are used for the null "
+                        "distribution. 'fitch': only the simulated tip states are kept and the "
+                        "ancestral states are reconstructed with the Fitch algorithm, exactly as "
+                        "for the input data. 'truth': the true simulated ancestral states are used "
+                        "(previous behaviour).")
 
     # Testing
     parser.add_argument("-s", "--score", nargs='?', choices=['terminal', 'simultaneous',
@@ -208,6 +214,30 @@ def main():
         output.write_log(p.output, f"fitch score distribution for root state 0: {fitch_score_root_zero}")
         output.write_log(p.output, f"fitch score distribution for unknown root state: {fitch_score_root_both}")
 
+        output.write_log(p.output, f"states of simulated genes used for null distribution: {p.null_states}")
+        # number of changes in the true simulated histories (before any reconstruction)
+        simul_true_changes = output.count_changes(simul_anc_states, simul_desc_states,
+                                                  simul_counts)
+        simul_recon_dists = None
+        if p.null_states == "fitch":
+            # Separate random generator for ambiguous root states of the reconstructed simulated
+            # genes, so that the simulated histories themselves are identical to --null_states
+            # truth for the same seed
+            null_recon_rng = random.Random(None if p.seed is None else f"null_recon_{p.seed}")
+
+            print("Ancestral reconstruction of simulated genes")
+            (simul_anc_states, simul_desc_states, simul_leaves, simul_counts, simul_fitch_one,
+            simul_fitch_zero, simul_fitch_both) = anc_recon.recon_simulated(
+                simul_leaves, simul_counts, tree_struc, null_recon_rng)
+            output.write_log(p.output, f"fitch score distribution of simulated genes for root state 1: {simul_fitch_one}")
+            output.write_log(p.output, f"fitch score distribution of simulated genes for root state 0: {simul_fitch_zero}")
+            output.write_log(p.output, f"fitch score distribution of simulated genes for unknown root state: {simul_fitch_both}")
+            simul_recon_dists = (simul_fitch_one, simul_fitch_zero, simul_fitch_both)
+
+        output.write_homoplasy_report(
+            p.output, (fitch_score_root_one, fitch_score_root_zero, fitch_score_root_both),
+            simul_true_changes, simul_recon_dists)
+
         # Calculate scores for simulated data and input data")
         null_dist_scores, input_scores = scoring.scoring_procedure(
             p.score, simul_anc_states, simul_desc_states, simul_leaves, simul_counts,
@@ -226,6 +256,11 @@ def main():
             if k_frac == 1.0:
                 print("Warning: No additional simulation performed. Please use a larger percentile.")
             else:
+                if p.null_states == "fitch":
+                    print("Ancestral reconstruction of additionally simulated genes")
+                    (add_simul_anc_states, add_simul_desc_states, add_simul_leaves,
+                    add_simul_counts, _, _, _) = anc_recon.recon_simulated(
+                        add_simul_leaves, add_simul_counts, tree_struc, null_recon_rng)
                 print("Scoring of additional simulation")
                 null_dist_scores = scoring.additional_scoring(
                     add_simul_anc_states, add_simul_desc_states, add_simul_counts, k, k_frac,
