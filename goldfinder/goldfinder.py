@@ -8,6 +8,7 @@ import preprocessing
 import data_import
 import testing
 import anc_recon
+import calibration
 import scoring
 import argparse
 import random
@@ -72,7 +73,31 @@ def argparser():
                         "distribution. 'fitch': only the simulated tip states are kept and the "
                         "ancestral states are reconstructed with the Fitch algorithm, exactly as "
                         "for the input data. 'truth': the true simulated ancestral states are used "
-                        "(previous behaviour).")
+                        "(previous behaviour; to reproduce earlier versions exactly, also set "
+                        "--null_filter no --legacy_shared_root).")
+    parser.add_argument("--null_mutations", choices=["calibrated", "fitch_score"], default=None,
+                        help="Number of mutations placed on the tree for each simulated gene. "
+                        "'calibrated': drawn from P(M | Fitch score), estimated with a simulated "
+                        "lookup table, so that simulated genes reconstructed with Fitch have the "
+                        "same Fitch score distribution as the input genes. 'fitch_score': equal to "
+                        "the Fitch score of an input gene (previous behaviour). Default: "
+                        "'calibrated' for --null_states fitch, 'fitch_score' for --null_states "
+                        "truth ('calibrated' is not possible with 'truth').")
+    parser.add_argument("--null_filter", choices=["yes", "no"], default="yes",
+                        help="Remove simulated genes that would have been removed from the input "
+                        "data (genes present in no or all genomes and, if --preprocess is set, "
+                        "genes outside [freq_min, freq_max]). 'no': previous behaviour.")
+    parser.add_argument("--calibration_replicates", type=int, default=1000,
+                        help="Number of simulated genes per number of mutations M in the lookup "
+                        "table for --null_mutations calibrated.")
+    parser.add_argument("--calibration_iterations", type=int, default=1000,
+                        help="Maximum number of EM iterations to estimate the distribution of the "
+                        "number of mutations for --null_mutations calibrated. 1 corresponds to a "
+                        "uniform prior over the number of mutations.")
+    parser.add_argument("--legacy_shared_root", action="store_true",
+                        help="Only for comparison with previous versions: draw one random root "
+                        "state for all simulated genes with ambiguous root state instead of one "
+                        "per gene.")
 
     # Testing
     parser.add_argument("-s", "--score", nargs='?', choices=['terminal', 'simultaneous',
@@ -162,6 +187,11 @@ def argparser():
     if args.freq_min >= args.freq_max:
         exit('Error: -fmin/--freq_min must be smaller than -fmax/--freq_max.')
 
+    if args.null_mutations is None:
+        args.null_mutations = "calibrated" if args.null_states == "fitch" else "fitch_score"
+    elif args.null_mutations == "calibrated" and args.null_states == "truth":
+        exit('Error: --null_mutations calibrated requires --null_states fitch.')
+
     return args
 
 
@@ -193,7 +223,7 @@ def main():
         p.input, p.file_type, p.metadata, p.known_associations)
 
         # Preprocessing
-        pre_df = preprocessing.preproc(df, p.preprocess)
+        pre_df = preprocessing.preproc(df, p.preprocess, p.freq_min, p.freq_max)
 
         # Constructing tree structure from nwk string or from distance matrix
         tree_struc, tip_lvlorder, branch_distances = tree_reconstruction.main(p.tree, p.tree_inference,
@@ -205,24 +235,66 @@ def main():
         fitch_score_root_zero, fitch_score_root_both) = anc_recon.recon(pre_df, tree_struc,
                                                                         tip_lvlorder)
 
-        print("Simulate for three possible root states")
-        (simul_anc_states, simul_desc_states, simul_leaves, simul_counts, new_dist_one, new_dist_zero,
-        new_dist_both) = simulation.simu(fitch_score_root_one, fitch_score_root_zero,
-                                        fitch_score_root_both, tree_struc, branch_distances,
-                                        int(p.genes_simulated))
         output.write_log(p.output, f"fitch score distribution for root state 1: {fitch_score_root_one}")
         output.write_log(p.output, f"fitch score distribution for root state 0: {fitch_score_root_zero}")
         output.write_log(p.output, f"fitch score distribution for unknown root state: {fitch_score_root_both}")
 
         output.write_log(p.output, f"states of simulated genes used for null distribution: {p.null_states}")
+        output.write_log(p.output, f"number of mutations of simulated genes: {p.null_mutations}")
+        output.write_log(p.output, f"simulated genes filtered like input genes: {p.null_filter}")
+        output.write_log(p.output, "root state of simulated genes with ambiguous root state: " +
+                         ("one for all genes (legacy)" if p.legacy_shared_root else "one per gene"))
+
+        # leaves of the tree (ordered by node index, as in the simulation) that are input genomes
+        input_tip_nodes = {tip_lvlorder[name] for name in pre_df.columns}
+        input_leaf_mask = [node in input_tip_nodes
+                           for node in calibration.tree_arrays(tree_struc)[3]]
+        if p.null_filter == "yes":
+            def keep_fn(num_present):
+                return preprocessing.keep_gene(num_present, len(pre_df.columns), p.preprocess,
+                                               p.freq_min, p.freq_max)
+        else:
+            keep_fn = None
+
+        # distributions of the number of mutations placed on the tree for the simulated genes
+        if p.null_mutations == "calibrated":
+            print("Calibrating the number of mutations of simulated genes (lookup table)")
+            # separate random generator, so that the global random state is not affected
+            calibration_rng = np.random.RandomState(
+                None if p.seed is None else random.Random(f"calibration_{p.seed}").getrandbits(32))
+            (mut_dist_one, mut_dist_zero, mut_dist_both,
+             calibration_info) = calibration.calibrate(
+                fitch_score_root_one, fitch_score_root_zero, fitch_score_root_both, tree_struc,
+                branch_distances, input_leaf_mask, keep_fn, p.calibration_replicates,
+                p.calibration_iterations, calibration_rng)
+            output.write_calibration_report(p.output, calibration_info)
+        else:
+            mut_dist_one, mut_dist_zero, mut_dist_both = (
+                fitch_score_root_one, fitch_score_root_zero, fitch_score_root_both)
+
+        print("Simulate for three possible root states")
+        (simul_anc_states, simul_desc_states, simul_leaves, simul_counts, new_dist_one, new_dist_zero,
+        new_dist_both) = simulation.simu(mut_dist_one, mut_dist_zero, mut_dist_both, tree_struc,
+                                        branch_distances, int(p.genes_simulated),
+                                        p.legacy_shared_root)
+
+        if keep_fn is not None:
+            (simul_anc_states, simul_desc_states, simul_leaves, simul_counts,
+             num_removed) = preprocessing.filter_simulated(
+                simul_anc_states, simul_desc_states, simul_leaves, simul_counts, input_leaf_mask,
+                keep_fn)
+            output.write_log(p.output, f"simulated genes removed by the filter: {num_removed} of "
+                             f"{int(p.genes_simulated)} ({num_removed / int(p.genes_simulated):.2%})")
+            if len(simul_counts) == 0:
+                exit("Error: all simulated genes were removed by the filter.")
+
         # number of changes in the true simulated histories (before any reconstruction)
         simul_true_changes = output.count_changes(simul_anc_states, simul_desc_states,
                                                   simul_counts)
         simul_recon_dists = None
         if p.null_states == "fitch":
             # Separate random generator for ambiguous root states of the reconstructed simulated
-            # genes, so that the simulated histories themselves are identical to --null_states
-            # truth for the same seed
+            # genes, so that the global random state is not affected
             null_recon_rng = random.Random(None if p.seed is None else f"null_recon_{p.seed}")
 
             print("Ancestral reconstruction of simulated genes")
@@ -248,13 +320,31 @@ def main():
         # Additional simulation of distribution's tail so far only implemented for simulatenous score
         if p.score == "simultaneous":
             print("Additional Simulation for extreme region(s)")
+            # The tail is simulated in terms of the number of mutations M placed on the tree:
+            # |simultaneous score| <= number of changes of either gene <= M, so pairs with
+            # |score| >= k only occur between genes with M >= k, and k_frac = P(M >= k).
             (add_simul_anc_states, add_simul_desc_states, add_simul_leaves, add_simul_counts, k,
             k_frac) = simulation.additional_simu_new(
-                null_dist_scores, fitch_score_root_one, fitch_score_root_zero, fitch_score_root_both,
-                tree_struc, branch_distances, int(p.genes_simulated), p.output, p.additional)
+                null_dist_scores, mut_dist_one, mut_dist_zero, mut_dist_both,
+                tree_struc, branch_distances, int(p.genes_simulated), p.output, p.additional,
+                p.legacy_shared_root)
+
+            if k_frac != 1.0 and keep_fn is not None:
+                # Filtered genes are dropped without replacement, both here and in the initial
+                # simulation, so the scaling with k_frac**2 in additional_scoring remains valid.
+                (add_simul_anc_states, add_simul_desc_states, add_simul_leaves, add_simul_counts,
+                 num_removed) = preprocessing.filter_simulated(
+                    add_simul_anc_states, add_simul_desc_states, add_simul_leaves,
+                    add_simul_counts, input_leaf_mask, keep_fn)
+                output.write_log(p.output, f"additionally simulated genes removed by the filter: "
+                                 f"{num_removed} of {int(p.genes_simulated)}")
 
             if k_frac == 1.0:
                 print("Warning: No additional simulation performed. Please use a larger percentile.")
+            elif len(add_simul_counts) == 0:
+                print("Warning: No additional simulation performed, all genes were removed by the "
+                      "filter.")
+                output.write_log(p.output, "additional simulation not used: all genes filtered")
             else:
                 if p.null_states == "fitch":
                     print("Ancestral reconstruction of additionally simulated genes")

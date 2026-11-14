@@ -1008,3 +1008,26 @@ def write_homoplasy_report(poutput, input_dists, simulated_changes, recon_dists=
     lines.append("")
 
     write_log(poutput, "\n".join(lines))
+
+
+def write_calibration_report(poutput, info):
+    """Writing details of the calibration of the number of mutations to the log file
+    info: dict returned by calibration.calibrate
+    """
+    lines = ["", "=== Calibration of the number of mutations of simulated genes (lookup table) ===",
+             f"Number of mutations M in lookup table: 1 to {info['max_mutations']} (branches with "
+             f"positive length: {info['num_branches']}), {info['replicates']} simulated genes "
+             f"per M",
+             f"Distribution of M estimated with {info['iterations']} EM iterations (maximum "
+             f"{info['max_iterations']}; 1 iteration = uniform prior over M)",
+             f"Probability of the 5% largest M values (should be close to 0): "
+             f"{info['prior_mass_at_max']:.2e}",
+             f"Input genes with a Fitch score not reached in the lookup table (simulated with M = "
+             f"Fitch score): {info['unexplained_genes']}",
+             "Number of mutations M drawn for a gene with Fitch score s:",
+             f"{'s':>6s}{'mean M':>10s}{'5%':>6s}{'median':>8s}{'95%':>6s}"]
+    for s, (mean, q05, q50, q95) in info["posterior_summary"].items():
+        lines.append(f"{s:>6d}{mean:>10.2f}{q05:>6d}{q50:>8d}{q95:>6d}")
+    lines.append("=== End of calibration ===")
+    lines.append("")
+    write_log(poutput, "\n".join(lines))

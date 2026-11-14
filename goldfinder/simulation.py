@@ -5,7 +5,7 @@ import output
 import tree_reconstruction
 
 
-def simu(dist_one, dist_zero, dist_both, new_tree, branch_dist, s):
+def simu(dist_one, dist_zero, dist_both, new_tree, branch_dist, s, shared_root=False):
     """Simulating genes
     dist_one: homoplasy distribution for root state 1
     dist_zero: homoplasy distribution for root state 0
@@ -33,7 +33,7 @@ def simu(dist_one, dist_zero, dist_both, new_tree, branch_dist, s):
             distribution_dict[str(m)] = (distribution_dict[str(m)] -
                                          (sum(distribution_dict.values())-s))
 
-    patterns = []
+    patterns = {}
     # anc_states: list of (list of gene states of all ancestors) for each simulation
     anc_states = []
     desc_states = []
@@ -63,7 +63,8 @@ def simu(dist_one, dist_zero, dist_both, new_tree, branch_dist, s):
                                               p=p_norm) for x in n_mts_one]
         branch_mutate_one = [sorted(x.tolist()) for x in branch_mutate_one]
 
-        simu_step(1, branch_mutate_one, patterns, new_tree, counts, leaves, desc_states, anc_states)
+        simu_step(1, branch_mutate_one, patterns, new_tree, counts, leaves, desc_states, anc_states,
+                  shared_root)
 
     if distribution_dict["0"] != 0:
         dist_zero = [dist_zero.get(i+1, 0) for i in range(max(dist_zero.keys()))]
@@ -87,7 +88,7 @@ def simu(dist_one, dist_zero, dist_both, new_tree, branch_dist, s):
         branch_mutate_zero = [sorted(x.tolist()) for x in branch_mutate_zero]
 
         simu_step(0, branch_mutate_zero, patterns, new_tree,
-                  counts, leaves, desc_states, anc_states)
+                  counts, leaves, desc_states, anc_states, shared_root)
 
     if distribution_dict["2"] != 0:
         dist_both = [dist_both.get(i+1, 0) for i in range(max(dist_both.keys()))]
@@ -111,24 +112,34 @@ def simu(dist_one, dist_zero, dist_both, new_tree, branch_dist, s):
         branch_mutate_both = [sorted(x.tolist()) for x in branch_mutate_both]
 
         simu_step(2, branch_mutate_both, patterns, new_tree,
-                  counts, leaves, desc_states, anc_states)
+                  counts, leaves, desc_states, anc_states, shared_root)
 
     return anc_states, desc_states, leaves, counts, dist_one, dist_zero, dist_both
 
 
 def simu_step(dist_name, branch_mutate, patterns, new_tree, counts, leaves_state, desc_state,
-              anc_state):
+              anc_state, shared_root=False):
     """Performing state changes for tree nodes based on which branches were selected
+    dist_name: root state 0 or 1, or 2 if the root state is ambiguous
+    branch_mutate: list with one entry per simulated gene: the sorted list of mutated nodes
+    patterns: dict {(root state, mutated nodes): index in counts}, shared between calls
+    shared_root: if True, a single random root state is used for all genes with ambiguous root
+                 state (previous behaviour, only for comparison). Otherwise the root state is
+                 drawn independently for each gene.
     """
     root = dist_name
-    if root == 2:
+    if dist_name == 2 and shared_root:
         root = random.choice([0, 1])
 
     for x in tqdm(branch_mutate):
 
-        simu_tree = list(new_tree)
+        if dist_name == 2 and not shared_root:
+            root = random.choice([0, 1])
 
-        if [root, x] not in patterns:
+        simu_tree = list(new_tree)
+        pattern_key = (root, tuple(x))
+
+        if pattern_key not in patterns:
             leaf_state = []
             descendant_state = []
             ancestor_state = []
@@ -160,21 +171,21 @@ def simu_step(dist_name, branch_mutate, patterns, new_tree, counts, leaves_state
                     if simu_tree[node][1] == 0 and simu_tree[node][2] == 0:
                         leaf_state.append(simu_tree[node][3])
 
-            patterns.append([root, x])
+            patterns[pattern_key] = len(counts)
             counts.append(1)
             leaves_state.append(leaf_state)
             anc_state.append(ancestor_state)
             desc_state.append(descendant_state)
 
         else:
-            counts[patterns.index([root, x])] += 1
+            counts[patterns[pattern_key]] += 1
 
 
 def additional_simu_new(scores, dist_one, dist_zero, dist_both, new_tree, branch_dist, s,
-                        poutput, padditional):
+                        poutput, padditional, shared_root=False):
 
     p_norm = branch_dist/branch_dist.sum()  # normalizing branch length for probability
-    patterns = []
+    patterns = {}
     anc_states = []
     desc_states = []
     leaves = []
@@ -207,7 +218,7 @@ def additional_simu_new(scores, dist_one, dist_zero, dist_both, new_tree, branch
     k_frac = k_frac / dist_sum
 
     output.write_log(poutput, f"Threshold k of the more extreme simultaneous scores: {k}")
-    output.write_log(poutput, f"Fraction k_frac of simultaneous scores in extreme region: {k_frac}")
+    output.write_log(poutput, f"Fraction k_frac of simulated genes with at least k mutations: {k_frac}")
 
     # Stop additional simulation if it is not more fine-grained than default simulation
     if k_frac == 1:
@@ -267,7 +278,7 @@ def additional_simu_new(scores, dist_one, dist_zero, dist_both, new_tree, branch
             branch_mutate_one = [sorted(x.tolist()) for x in branch_mutate_one]
 
             simu_step(1, branch_mutate_one, patterns, new_tree,
-                      counts, leaves, desc_states, anc_states)
+                      counts, leaves, desc_states, anc_states, shared_root)
 
     if num_sim_genes_with_root_state["0"] != 0:
 
@@ -297,7 +308,7 @@ def additional_simu_new(scores, dist_one, dist_zero, dist_both, new_tree, branch
             branch_mutate_zero = [sorted(x.tolist()) for x in branch_mutate_zero]
 
             simu_step(0, branch_mutate_zero, patterns, new_tree,
-                      counts, leaves, desc_states, anc_states)
+                      counts, leaves, desc_states, anc_states, shared_root)
 
     if num_sim_genes_with_root_state["2"] != 0:
 
@@ -327,6 +338,6 @@ def additional_simu_new(scores, dist_one, dist_zero, dist_both, new_tree, branch
             branch_mutate_both = [sorted(x.tolist()) for x in branch_mutate_both]
 
             simu_step(2, branch_mutate_both, patterns, new_tree,
-                      counts, leaves, desc_states, anc_states)
+                      counts, leaves, desc_states, anc_states, shared_root)
 
     return anc_states, desc_states, leaves, counts, k, k_frac
